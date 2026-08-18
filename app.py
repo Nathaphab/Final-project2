@@ -1,3 +1,7 @@
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+import cv2
+
 import os
 import shutil
 from datetime import datetime
@@ -384,6 +388,13 @@ def align_candidate_to_ref(ref_rgb: np.ndarray, ref_cnt: np.ndarray,
 
     delta_angle = angle_ref - angle_cand
 
+    # 🌟 จุดที่เพิ่มเข้ามาเพื่อแก้ปัญหาภาพตีลังกากลับหัว 🌟
+    if delta_angle > np.pi / 2:
+        delta_angle -= np.pi
+    elif delta_angle < -np.pi / 2:
+        delta_angle += np.pi
+    # --------------------------------------------------
+
     cos_a = np.cos(delta_angle)
     sin_a = np.sin(delta_angle)
     tx = cx_ref - scale * (cx_cand * cos_a - cy_cand * sin_a)
@@ -478,14 +489,18 @@ def make_overlay(base_img: np.ndarray, edge: np.ndarray,
                        markerType=cv2.MARKER_TILTED_CROSS, markerSize=12, thickness=2)
         cv2.line(overlay, (int(x), int(y)), (int(ex), int(ey)), (255, 255, 0), 1)
 
+    # --- ฟังก์ชันที่ 1 (ครึ่งบนที่พี่ส่งมา) ---
     cv2.putText(overlay, f"ID: {amulet_id}", (20, 32),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.80, (255, 255, 255), 2, cv2.LINE_AA)
     cv2.putText(overlay, f"Decision: {decision}", (20, 64),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.80, (0, 128, 255), 2, cv2.LINE_AA)
     cv2.putText(overlay, f"Score: {score:.3f} px   Threshold: {T_PX:.3f} px", (20, 96),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.68, (0, 128, 255), 2, cv2.LINE_AA)
-    cv2.putText(overlay, status_line, (20, 128),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2, cv2.LINE_AA)
+    
+    # 📍 แก้ไขจุดที่ 1: เปลี่ยนมาใช้ฟังก์ชันภาษาไทยสำหรับ status_line
+    font_path = "THSarabunNew.ttf" # เช็คชื่อฟอนต์ให้ตรงกับไฟล์ที่โหลดมาด้วยนะครับ
+    overlay = draw_thai_text_on_cv_image(overlay, status_line, (20, 128), font_path, 30, (255, 255, 255))
+    
     return overlay
 
 
@@ -498,8 +513,11 @@ def make_early_fail_overlay(base_img: np.ndarray, edge: np.ndarray, amulet_id: s
                 cv2.FONT_HERSHEY_SIMPLEX, 0.80, (255, 255, 255), 2, cv2.LINE_AA)
     cv2.putText(overlay, f"Decision: FAIL", (20, 64),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.80, (0, 0, 255), 2, cv2.LINE_AA)
-    cv2.putText(overlay, f"Error: {reason}", (20, 96),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.60, (0, 128, 255), 2, cv2.LINE_AA)
+    
+    # 📍 แก้ไขจุดที่ 2: เปลี่ยนมาใช้ฟังก์ชันภาษาไทยสำหรับ Error reason
+    font_path = "THSarabunNew.ttf"
+    overlay = draw_thai_text_on_cv_image(overlay, f"Error: {reason}", (20, 96), font_path, 30, (0, 128, 255))
+    
     return overlay
 
 
@@ -533,6 +551,24 @@ def render_debug_view(ref_rgb: np.ndarray, ref_edge: np.ndarray,
 
 # ================= FastAPI Application =================
 app = FastAPI(title="Smart Amulet Verification API")
+
+def draw_thai_text_on_cv_image(image_cv, text, position, font_path, font_size, color_bgr):
+    image_rgb = cv2.cvtColor(image_cv, cv2.COLOR_BGR2RGB)
+    image_pil = Image.fromarray(image_rgb)
+    
+    draw = ImageDraw.Draw(image_pil)
+    try:
+        font = ImageFont.truetype(font_path, font_size)
+    except IOError:
+        font = ImageFont.load_default()
+        
+    color_rgb = (color_bgr[2], color_bgr[1], color_bgr[0])
+    
+    # ✨ จุดที่เปลี่ยน: เพิ่ม stroke_width=2 และ stroke_fill=(0, 0, 0) เพื่อสร้างขอบสีดำ
+    draw.text(position, text, font=font, fill=color_rgb, stroke_width=2, stroke_fill=(0, 0, 0))
+    
+    image_final = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
+    return image_final
 
 @app.post("/api/register")
 def api_register(user: UserRegister):
