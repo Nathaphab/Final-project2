@@ -1,0 +1,33 @@
+<div class="admin-container">
+    <h2>จัดการผู้ใช้งาน</h2>
+    <table id="user-table">
+        <thead>
+            <tr>
+                <th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Action</th>
+            </tr>
+        </thead>
+        <tbody id="user-list"></tbody>
+    </table>
+</div>
+
+<script>
+    async function loadUsers() {
+        const res = await fetch('/api/admin/users');
+        const users = await res.json();
+        const list = document.getElementById('user-list');
+        list.innerHTML = users.map(u => `
+            <tr>
+                <td>${u.id}</td><td>${u.username}</td><td>${u.email}</td><td>${u.role}</td>
+                <td><button onclick="deleteUser(${u.id})">ลบ</button></td>
+            </tr>
+        `).join('');
+    }
+
+    async function deleteUser(id) {
+        if(confirm('ยืนยันการลบผู้ใช้นี้?')) {
+            await fetch(`/api/admin/delete_user/${id}`, { method: 'DELETE' });
+            loadUsers();
+        }
+    }
+    loadUsers();
+</script>

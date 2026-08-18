@@ -1,0 +1,1429 @@
+/* ================= Theme Variables ================= */
+/* ================= แก้ปัญหาตัวหนังสือล่องหนใน โหมดมืด (Dark Theme) ================= */
+/* 1. บังคับหัวข้อ (Label) ให้เป็นสีเทาอ่อน/สว่าง */
+html:not([data-theme="light"]) .auth-modal-content label,
+html:not([data-theme="light"]) .form-group label {
+    color: #e5e7eb !important; 
+}
+
+/* 2. บังคับช่องกรอกข้อมูลและตัวเลือก (Input & Select) ให้ตัวหนังสือสีขาว พื้นหลังสีมืด */
+html:not([data-theme="light"]) .auth-input,
+html:not([data-theme="light"]) input,
+html:not([data-theme="light"]) select {
+    color: #ffffff !important; 
+    background-color: #1f2937 !important; 
+    border: 1px solid #4b5563 !important;
+}
+
+/* 3. บังคับตัวเลือกใน Dropdown (Option) ไม่ให้เป็นสีขาวกลืนไปกับพื้น */
+html:not([data-theme="light"]) select option {
+    color: #ffffff !important;
+    background-color: #1f2937 !important;
+}
+:root {
+    --bg-main: #0d1117;
+    --bg-surface: #111827;
+    --bg-card: #171f2e;
+    --bg-card-header: #202a3c;
+    
+    --color-text-main: #e2e8f0;
+    --color-text-muted: #94a3b8;
+    
+    --gold-primary: #D4AF37;
+    --gold-bright: #FFD700;
+    --gold-dark: #aa8410;
+    --gold-glow: rgba(212, 175, 55, 0.45);
+    
+    --blue-primary: #00d2ff;
+    --blue-glow: rgba(0, 210, 255, 0.3);
+    
+    --color-success: #00e676;
+    --color-success-bg: rgba(0, 230, 118, 0.1);
+    --color-success-border: rgba(0, 230, 118, 0.3);
+    
+    --color-fail: #ff1744;
+    --color-fail-bg: rgba(255, 23, 68, 0.1);
+    --color-fail-border: rgba(255, 23, 68, 0.3);
+    
+    --border-color: #2e354f;
+    --border-hover: #3f496e;
+    
+    --shadow-sm: 0 2px 4px rgba(0,0,0,0.5);
+    --shadow-md: 0 8px 16px rgba(0,0,0,0.6);
+    --shadow-lg: 0 16px 32px rgba(0,0,0,0.7);
+    --shadow-gold: 0 0 20px rgba(212, 175, 55, 0.25);
+    
+    --font-app: 'Inter', 'Sarabun', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+/* ================= โหมดสว่าง (Light Theme) จัดเต็ม ================= */
+:root[data-theme="light"] {
+    --color-bg: #f0f2f5 !important;
+    --color-surface: #ffffff !important;
+    --color-text: #1f2937 !important;
+    --color-text-muted: #6b7280 !important;
+    --color-border: #d1d5db !important;
+}
+
+/* 1. ทะลวงสีพื้นหลังหลัก */
+html[data-theme="light"] body,
+html[data-theme="light"] .top-navbar,
+html[data-theme="light"] .app-header,
+html[data-theme="light"] .card,
+html[data-theme="light"] .auth-modal-content,
+html[data-theme="light"] .history-section {
+    background-color: var(--color-surface) !important;
+    border-color: var(--color-border) !important;
+}
+
+/* 2. ทะลวงสีพื้นหลังแถบหัวข้อ (จุดที่ทำให้มองไม่เห็นในคลิป) */
+html[data-theme="light"] .card-header,
+html[data-theme="light"] .tabs-header {
+    background-color: #f8fafc !important;
+    border-bottom: 1px solid var(--color-border) !important;
+}
+
+/* 3. ทะลวงสีกล่องย่อย ช่องกรอกข้อมูล และหัวตารางประวัติ */
+html[data-theme="light"] .upload-box,
+html[data-theme="light"] .stat-box,
+html[data-theme="light"] .visual-placeholder,
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] .search-box,
+html[data-theme="light"] .tab-btn,
+html[data-theme="light"] .history-table th {
+    background-color: #f9fafb !important;
+    border-color: var(--color-border) !important;
+    color: var(--color-text) !important;
+}
+
+/* 4. ทะลวงสีตัวอักษรทั้งหมด (เอา td ออกเพื่อให้สีเขียว/แดง ของผลประเมินทำงานได้) */
+html[data-theme="light"] h1, html[data-theme="light"] h2, html[data-theme="light"] h3,
+html[data-theme="light"] p, html[data-theme="light"] label, html[data-theme="light"] th, 
+html[data-theme="light"] .stat-label, 
+html[data-theme="light"] .nav-logo span, html[data-theme="light"] .btn-text,
+html[data-theme="light"] .market-title {
+    color: var(--color-text) !important;
+}
+
+/* 5. ทะลวงสีตัวอักษรรอง และ Placeholder */
+html[data-theme="light"] small, html[data-theme="light"] .form-help, 
+html[data-theme="light"] input::placeholder, html[data-theme="light"] .table-empty,
+html[data-theme="light"] .threshold-marker {
+    color: var(--color-text-muted) !important;
+}
+
+/* 6. จัดการสีปุ่มทอง และแท็บที่กำลังกด (Active) */
+html[data-theme="light"] .btn-primary, html[data-theme="light"] .btn-primary i,
+html[data-theme="light"] #btn-inspect, html[data-theme="light"] #btn-inspect i {
+    color: #000000 !important; 
+}
+html[data-theme="light"] .tab-btn.active {
+    background-color: #ffffff !important;
+    border-bottom: 2px solid #3b82f6 !important;
+}
+
+/* 7. แก้ไขเส้นคั่นตารางประวัติให้มองเห็นชัดขึ้น */
+html[data-theme="light"] .history-table tr {
+    border-bottom: 1px solid var(--color-border) !important;
+}
+html[data-theme="light"] .history-table tbody tr:hover {
+    background-color: #f3f4f6 !important;
+}
+
+/* ================= Base Styles ================= */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: var(--font-app);
+    background-color: var(--bg-main);
+    color: var(--color-text-main);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: var(--bg-main);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--border-hover);
+}
+
+/* App Container */
+.app-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* ================= Header ================= */
+.app-header {
+    background: linear-gradient(135deg, var(--bg-surface) 0%, var(--bg-card) 100%);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 18px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: var(--shadow-md);
+}
+
+.header-logo {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.header-logo i {
+    font-size: 2.2rem;
+    color: var(--gold-primary);
+}
+
+.gold-glow {
+    filter: drop-shadow(0 0 8px var(--gold-primary));
+}
+
+.brand-text h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(to right, #fff, var(--gold-bright));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 0.5px;
+}
+
+.brand-text p {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin-top: 2px;
+}
+
+.system-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.03);
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.85rem;
+}
+
+.pulse-indicator {
+    width: 8px;
+    height: 8px;
+    background-color: var(--color-success);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--color-success);
+    animation: pulse 1.8s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.7); }
+    70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(0, 230, 118, 0); }
+    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 230, 118, 0); }
+}
+
+/* ================= Layout Grid ================= */
+.main-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+}
+
+@media (min-width: 1024px) {
+    .main-grid {
+        grid-template-columns: 4.5fr 5.5fr; /* Optimal layout for settings & results */
+    }
+}
+
+/* ================= Card UI ================= */
+.card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-md);
+}
+
+.card-header {
+    background-color: var(--bg-card-header);
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.card-header h2 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.card-header h2 i {
+    color: var(--gold-primary);
+}
+
+.card-body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    height: 100%;
+}
+
+/* ================= Form Controls ================= */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--color-text-main);
+}
+
+input[type="text"] {
+    background-color: rgba(0, 0, 0, 0.25);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: #fff;
+    padding: 10px 14px;
+    font-size: 0.95rem;
+    font-family: var(--font-app);
+    transition: all 0.2s ease;
+}
+
+input[type="text"]:focus {
+    outline: none;
+    border-color: var(--gold-primary);
+    box-shadow: 0 0 0 2px var(--gold-glow);
+}
+
+.input-with-action {
+    display: flex;
+    gap: 8px;
+}
+
+.input-with-action input {
+    flex: 1;
+}
+
+.form-help {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+}
+
+/* ================= Buttons ================= */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: var(--font-app);
+    font-size: 0.95rem;
+    font-weight: 500;
+    padding: 10px 18px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--gold-dark) 0%, var(--gold-primary) 50%, var(--gold-bright) 100%);
+    color: #000;
+    font-weight: 600;
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-primary:hover {
+    box-shadow: var(--shadow-gold);
+    transform: translateY(-1px);
+    filter: brightness(1.1);
+}
+
+.btn-primary:active {
+    transform: translateY(1px);
+}
+
+.btn-secondary {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: var(--border-color);
+    color: var(--color-text-main);
+}
+
+.btn-secondary:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: var(--border-hover);
+    color: #fff;
+}
+
+.btn-danger {
+    background-color: rgba(255, 23, 68, 0.15);
+    border-color: rgba(255, 23, 68, 0.3);
+    color: #ff5252;
+}
+
+.btn-danger:hover {
+    background-color: rgba(255, 23, 68, 0.25);
+    border-color: #ff1744;
+    color: #fff;
+}
+
+.btn-block {
+    width: 100%;
+    padding: 12px;
+}
+
+/* ================= Image Upload Zones ================= */
+.upload-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+
+@media (min-width: 640px) {
+    .upload-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.upload-box {
+    background-color: rgba(0, 0, 0, 0.15);
+    border: 2px dashed var(--border-color);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 230px;
+    position: relative;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.upload-box:hover {
+    border-color: var(--border-hover);
+    background-color: rgba(255,255,255,0.01);
+}
+
+.upload-box.dragover {
+    border-color: var(--gold-primary);
+    background-color: rgba(212, 175, 55, 0.05);
+}
+
+.upload-box-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.badge-gold {
+    background-color: rgba(212, 175, 55, 0.15);
+    color: var(--gold-primary);
+    border: 1px solid var(--gold-primary);
+}
+
+.badge-blue {
+    background-color: rgba(0, 210, 255, 0.15);
+    color: var(--blue-primary);
+    border: 1px solid var(--blue-primary);
+}
+
+.badge-info {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: var(--color-text-muted);
+    border: 1px solid var(--border-color);
+}
+
+.file-input-hidden {
+    display: none;
+}
+
+.upload-placeholder {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 8px;
+    color: var(--color-text-muted);
+}
+
+.upload-icon {
+    font-size: 2.2rem;
+    margin-bottom: 4px;
+    transition: transform 0.2s ease;
+}
+
+.upload-box:hover .upload-icon {
+    transform: translateY(-4px);
+    color: var(--gold-primary);
+}
+
+.upload-placeholder p {
+    font-size: 0.88rem;
+}
+
+.upload-placeholder p span {
+    color: var(--gold-primary);
+    font-weight: 500;
+}
+
+.upload-placeholder small {
+    font-size: 0.72rem;
+    opacity: 0.7;
+}
+
+.upload-preview {
+    position: relative;
+    width: 100%;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    overflow: hidden;
+    background-color: #000;
+    border: 1px solid var(--border-color);
+}
+
+.upload-preview img {
+    max-width: 100%;
+    max-height: 180px;
+    object-fit: contain;
+}
+
+.btn-remove-file {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background-color: rgba(0,0,0,0.7);
+    border: 1px solid var(--border-color);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s ease;
+}
+
+.btn-remove-file:hover {
+    background-color: var(--color-fail);
+    border-color: var(--color-fail);
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* ================= Results Section ================= */
+.result-stats {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+
+@media (min-width: 480px) {
+    .result-stats {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.stat-box {
+    background-color: rgba(0,0,0,0.18);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.decision-box-wrapper {
+    transition: all 0.3s ease;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-muted);
+    margin-bottom: 6px;
+}
+
+.stat-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+/* Decision states */
+.state-waiting {
+    color: var(--color-text-muted);
+}
+.state-pass {
+    color: var(--color-success);
+    text-shadow: 0 0 10px rgba(0, 230, 118, 0.3);
+}
+.state-fail {
+    color: var(--color-fail);
+    text-shadow: 0 0 10px rgba(255, 23, 68, 0.3);
+}
+
+.decision-box-wrapper.pass {
+    background-color: var(--color-success-bg);
+    border-color: var(--color-success-border);
+}
+.decision-box-wrapper.fail {
+    background-color: var(--color-fail-bg);
+    border-color: var(--color-fail-border);
+}
+
+/* Progress bar inside stats */
+.progress-bar-container {
+    width: 100%;
+    height: 6px;
+    background-color: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    margin-top: 10px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: var(--gold-primary);
+    border-radius: 3px;
+    transition: width 0.5s ease-out, background-color 0.3s ease;
+}
+
+.progress-bar.pass {
+    background-color: var(--color-success);
+}
+.progress-bar.fail {
+    background-color: var(--color-fail);
+}
+
+.threshold-marker {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    margin-top: 6px;
+    text-align: right;
+}
+
+/* ================= Tabs Layout ================= */
+.results-visual-tabs {
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background-color: rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.tabs-header {
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-card-header);
+}
+
+.tab-btn {
+    flex: 1;
+    padding: 12px 16px;
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    font-family: var(--font-app);
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.tab-btn:hover {
+    color: #fff;
+    background-color: rgba(255,255,255,0.02);
+}
+
+.tab-btn.active {
+    color: var(--gold-primary);
+    background-color: rgba(0, 0, 0, 0.15);
+    border-bottom: 2px solid var(--gold-primary);
+    font-weight: 600;
+}
+
+.tabs-content {
+    padding: 16px;
+}
+
+.tab-panel {
+    display: none;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+/* Visual Viewports */
+.visual-container {
+    width: 100%;
+    min-height: 320px;
+    background-color: #050608;
+    border: 1px solid rgba(255,255,255,0.03);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.visual-placeholder {
+    text-align: center;
+    color: var(--color-text-muted);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.placeholder-icon {
+    font-size: 3rem;
+    color: rgba(255,255,255,0.05);
+}
+
+.visual-image-wrapper {
+    position: relative;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.visual-image-wrapper img {
+    max-width: 100%;
+    max-height: 400px;
+    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+}
+
+.zoomable-image {
+    cursor: zoom-in;
+    transition: transform 0.2s ease;
+}
+
+.zoomable-image:hover {
+    transform: scale(1.01);
+}
+
+.image-zoom-hint {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background-color: rgba(0,0,0,0.65);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    color: rgba(255,255,255,0.8);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+    border: 1px solid rgba(255,255,255,0.05);
+}
+
+/* Notes Content */
+.note-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background-color: rgba(255, 255, 255, 0.02);
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
+    padding: 14px;
+}
+
+.note-summary label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--gold-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.notes-content {
+    font-size: 0.88rem;
+    color: var(--color-text-main);
+    white-space: pre-line;
+    word-break: break-word;
+}
+
+/* ================= History Section ================= */
+.history-section {
+    margin-top: 10px;
+}
+
+.history-header-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+@media (min-width: 768px) {
+    .history-header-wrapper {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+}
+
+.title-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.header-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.search-box {
+    position: relative;
+    min-width: 220px;
+}
+
+.search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--color-text-muted);
+    font-size: 0.88rem;
+}
+
+.search-box input {
+    width: 100%;
+    padding: 8px 12px 8px 34px !important;
+    font-size: 0.85rem !important;
+}
+
+/* Gallery of thumbnails */
+.history-gallery-title {
+    margin-bottom: 4px;
+}
+
+.history-gallery-title h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.history-gallery-title h3 i {
+    color: var(--gold-primary);
+}
+
+.history-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+    padding: 16px;
+    background-color: rgba(0,0,0,0.15);
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.02);
+    max-height: 380px;
+    overflow-y: auto;
+}
+
+.gallery-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    color: var(--color-text-muted);
+    font-size: 0.88rem;
+    padding: 40px;
+}
+
+.gallery-item {
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.gallery-item:hover {
+    border-color: var(--gold-primary);
+    transform: translateY(-3px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+}
+
+.thumb-image-wrapper {
+    position: relative;
+    width: 100%;
+    padding-top: 100%; /* 1:1 Aspect Ratio */
+    background-color: #000;
+}
+
+.thumb-image-wrapper img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.thumb-decision-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+
+.thumb-decision-badge.pass {
+    background-color: var(--color-success);
+    color: #000;
+}
+
+.thumb-decision-badge.fail {
+    background-color: var(--color-fail);
+    color: #fff;
+}
+
+.thumb-info {
+    padding: 8px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.thumb-id {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.thumb-meta {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    display: flex;
+    justify-content: space-between;
+}
+
+/* History Table */
+.history-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.85rem;
+}
+
+.history-table th {
+    background-color: var(--bg-card-header);
+    color: #fff;
+    font-weight: 600;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border-color);
+    white-space: nowrap;
+}
+
+.history-table td {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--color-text-main);
+}
+
+.history-table tbody tr {
+    transition: background-color 0.15s ease;
+}
+
+.history-table tbody tr:hover {
+    background-color: rgba(255,255,255,0.02);
+}
+
+.table-empty {
+    text-align: center;
+    color: var(--color-text-muted);
+    padding: 30px !important;
+}
+
+.table-decision-cell {
+    font-weight: 600;
+}
+.table-decision-cell.pass {
+    color: var(--color-success);
+}
+.table-decision-cell.fail {
+    color: var(--color-fail);
+}
+
+/* ================= Modal Viewer ================= */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(5,6,8,0.92);
+    backdrop-filter: blur(8px);
+    transition: opacity 0.3s ease;
+}
+
+.modal-close {
+    position: absolute;
+    top: 20px;
+    right: 30px;
+    color: #f1f1f1;
+    font-size: 40px;
+    font-weight: bold;
+    transition: 0.3s;
+    cursor: pointer;
+    user-select: none;
+}
+
+.modal-close:hover,
+.modal-close:focus {
+    color: var(--gold-primary);
+    text-decoration: none;
+}
+
+.modal-content-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100%;
+    padding: 40px;
+}
+
+.modal-content {
+    margin: auto;
+    display: block;
+    max-width: 90%;
+    max-height: 80vh;
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid rgba(255,255,255,0.05);
+    animation: zoom 0.25s ease;
+}
+
+@keyframes zoom {
+    from {transform:scale(0.95); opacity: 0;}
+    to {transform:scale(1); opacity: 1;}
+}
+
+.modal-caption {
+    margin: auto;
+    display: block;
+    width: 80%;
+    max-width: 700px;
+    text-align: center;
+    color: #ccc;
+    padding: 15px 0;
+    font-size: 0.95rem;
+}
+
+/* ================= Loading Overlay ================= */
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(5,6,8,0.88);
+    backdrop-filter: blur(12px);
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 30px;
+}
+
+.loading-spinner-wrapper {
+    position: relative;
+    width: 120px;
+    height: 120px;
+}
+
+.loading-spinner {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border: 4px solid transparent;
+    border-top: 4px solid var(--gold-primary);
+    border-bottom: 4px solid var(--gold-primary);
+    border-radius: 50%;
+    animation: spin 1.5s linear infinite;
+}
+
+.loading-spinner::after {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    border: 4px solid transparent;
+    border-left: 4px solid var(--blue-primary);
+    border-right: 4px solid var(--blue-primary);
+    border-radius: 50%;
+    animation: spin-reverse 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes spin-reverse {
+    0% { transform: rotate(360deg); }
+    100% { transform: rotate(0deg); }
+}
+
+.loading-logo {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.8rem;
+    color: var(--gold-primary);
+}
+
+.loading-logo i.pulse {
+    animation: heartbeat 1.5s ease-in-out infinite;
+}
+
+@keyframes heartbeat {
+    0% { transform: scale(1); filter: drop-shadow(0 0 4px var(--gold-primary)); }
+    50% { transform: scale(1.15); filter: drop-shadow(0 0 12px var(--gold-primary)); }
+    100% { transform: scale(1); filter: drop-shadow(0 0 4px var(--gold-primary)); }
+}
+
+.loading-text {
+    font-size: 1.15rem;
+    color: #fff;
+    font-weight: 500;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    letter-spacing: 0.5px;
+}
+
+.loading-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background-color: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+    padding: 16px 24px;
+    border-radius: 8px;
+    width: 90%;
+    max-width: 420px;
+}
+
+.loading-step {
+    font-size: 0.88rem;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: all 0.3s ease;
+}
+
+.loading-step i {
+    font-size: 1rem;
+}
+
+.loading-step.active {
+    color: var(--gold-primary);
+    font-weight: 500;
+}
+
+.loading-step.done {
+    color: var(--color-success);
+}
+
+.loading-step.done i {
+    color: var(--color-success);
+}
+/* ================= Navbar Styles ================= */
+.top-navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    /* เปลี่ยนจาก var(--color-surface) เป็นสีทึบที่ดูพรีเมียมเข้ากับธีมมืด */
+    background-color: #171b26; 
+    padding: 1rem 2rem;
+    /* เพิ่มเงาให้เข้มขึ้นและกว้างขึ้น เพื่อให้แถบเมนูดูลอยขึ้นมา */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+    /* เพิ่มเส้นขอบสีทองบางๆ ด้านล่างให้เข้ากับโลโก้ (ถ้าไม่ชอบลบทิ้งได้ครับ) */
+    border-bottom: 1px solid rgba(255, 215, 0, 0.2); 
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+}
+.nav-logo {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-text);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.btn-text {
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: 1rem;
+    padding: 0.5rem 1rem;
+    transition: 0.3s;
+}
+.btn-text:hover { color: var(--color-primary); }
+.btn-text.text-danger:hover { color: #ff4d4d; }
+.user-badge {
+    color: var(--color-primary);
+    background-color: rgba(255, 215, 0, 0.1);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    margin-right: 15px;
+    font-weight: 500;
+}
+
+/* ================= Modal Styles ================= */
+.auth-modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0; top: 0;
+    width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(5px);
+}
+.auth-modal-content {
+    background-color: var(--color-surface);
+    padding: 2rem;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 400px;
+    position: relative;
+    border: 1px solid var(--color-border);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+.auth-close {
+    position: absolute;
+    top: 15px; right: 20px;
+    color: var(--color-text-muted);
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.auth-close:hover { color: #fff; }
+.auth-input {
+    width: 100%;
+    padding: 12px;
+    margin-top: 5px;
+    margin-bottom: 15px;
+    background-color: var(--color-bg);
+    border: 1px solid var(--color-border);
+    color: #fff;
+    border-radius: 8px;
+    box-sizing: border-box;
+}
+.auth-input:focus {
+    border-color: var(--color-primary);
+    outline: none;
+}
+/* ================= Marketplace Styles ================= */
+.market-card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+.market-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+}
+.market-img {
+    width: 100%;
+    height: 250px;
+    object-fit: cover;
+    border-bottom: 1px solid var(--color-border);
+}
+.market-info { padding: 15px; }
+.market-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.market-temple {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    margin-bottom: 10px;
+}
+.market-price {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #ffd700;
+    margin-bottom: 10px;
+}
+.market-seller {
+    font-size: 0.8rem;
+    color: #888;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+/* ================= โหมดสว่าง (Light Theme) ขั้นเด็ดขาด ================= */
+/* 1. เปลี่ยนพื้นหลังหลัก */
+html[data-theme="light"] body {
+    background-color: #f0f2f5 !important;
+}
+
+/* 2. เปลี่ยนพื้นหลังแถบเมนู และการ์ดใหญ่ๆ ให้เป็นสีขาว */
+html[data-theme="light"] .top-navbar,
+html[data-theme="light"] .app-header,
+html[data-theme="light"] .card,
+html[data-theme="light"] .auth-modal-content,
+html[data-theme="light"] .history-section {
+    background-color: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* 3. บังคับตัวหนังสือทุกจุดให้เป็นสีเทาเข้ม (เกือบดำ) */
+html[data-theme="light"] h1, 
+html[data-theme="light"] h2, 
+html[data-theme="light"] h3, 
+html[data-theme="light"] label, 
+html[data-theme="light"] p, 
+html[data-theme="light"] .btn-text,
+html[data-theme="light"] th, 
+html[data-theme="light"] td,
+html[data-theme="light"] .stat-label,
+html[data-theme="light"] .nav-logo span,
+html[data-theme="light"] .upload-box-title span:not(.badge) {
+    color: #1f2937 !important;
+}
+
+/* 4. กวาดล้างความมืดในกล่องย่อย (ช่องกรอกรหัส, กล่องอัปโหลด, กล่องคะแนน) */
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] .upload-box,
+html[data-theme="light"] .stat-box,
+html[data-theme="light"] .visual-placeholder,
+html[data-theme="light"] .search-box,
+html[data-theme="light"] .btn-secondary,
+html[data-theme="light"] .tab-btn {
+    background-color: #f9fafb !important;
+    border: 1px solid #d1d5db !important;
+    color: #1f2937 !important;
+}
+
+/* 5. เปลี่ยนสีไอคอนต่างๆ ให้มองเห็นได้ (สีเทา) */
+html[data-theme="light"] .card-header i,
+html[data-theme="light"] .upload-placeholder i,
+html[data-theme="light"] .btn-secondary i,
+html[data-theme="light"] .search-icon {
+    color: #4b5563 !important;
+}
+
+/* 6. ตัวหนังสืออธิบายเล็กๆ และ Placeholder */
+html[data-theme="light"] small,
+html[data-theme="light"] .form-help,
+html[data-theme="light"] input::placeholder {
+    color: #9ca3af !important;
+}
+
+/* 7. ปุ่มหลักสีเหลือง (บังคับตัวอักษรสีดำเพื่อให้ตัดกับเหลือง) */
+html[data-theme="light"] .btn-primary,
+html[data-theme="light"] #btn-inspect {
+    color: #000000 !important;
+}
+html[data-theme="light"] .btn-primary i,
+html[data-theme="light"] #btn-inspect i {
+    color: #000000 !important;
+}
+
+/* 8. แท็บที่ถูกเลือก (Active Tab) */
+html[data-theme="light"] .tab-btn.active {
+    background-color: #ffffff !important;
+    border-bottom: 2px solid #3b82f6 !important; /* เส้นใต้สีฟ้า */
+}

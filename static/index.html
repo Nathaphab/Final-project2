@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Amulet Verification</title>
+    <link rel="icon" type="image/jpg" href="/แว่นขยาย.jpg">            
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Custom Style -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- ================= NAVBAR (แถบเมนูด้านบน) ================= -->    
+    <nav class="top-navbar">
+        <div class="navbar-brand" style="cursor: pointer; color: inherit; text-decoration: none;" onclick="window.location.href='/'">
+    <i class="fa-solid fa-gem" style="color: #fbbf24;"></i> Smart Amulet Verification
+</div>
+        
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <button id="theme-toggle" class="btn-text" onclick="toggleTheme()" title="สลับโหมดมืด/สว่าง" style="font-size: 1.2rem; padding: 5px 10px;">
+                <i class="fa-solid fa-sun" id="theme-icon"></i>
+            </button>
+            
+<!-- ✨ ย้ายปุ่มจัดการสมาชิกมาวางตรงนี้ครับ! มันจะอยู่ติดกับปุ่มเข้าสู่ระบบพอดี ✨ -->
+        <button id="btn-manage-users" class="btn-primary" style="display: none;" onclick="openUserManagement()">
+            <i class="fa-solid fa-users"></i> จัดการสมาชิก
+        </button>
+
+            <div class="nav-links" id="nav-auth-section">
+                <button class="btn-text" onclick="openModal('login-modal')">เข้าสู่ระบบ</button>
+                <button class="btn-primary" onclick="openModal('register-modal')">สมัครสมาชิก</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ================= MODAL: สมัครสมาชิก ================= -->
+    <div id="register-modal" class="auth-modal">
+        <div class="auth-modal-content">
+            <span class="auth-close" onclick="closeModal('register-modal')">&times;</span>
+            <h2 style="margin-bottom: 20px; color: var(--color-text);">สมัครสมาชิกใหม่</h2>
+            <div class="form-group">
+                <label>ชื่อผู้ใช้งาน</label>
+                <input type="text" id="reg-username" class="auth-input" placeholder="ตั้งชื่อ Username">
+            </div>
+            <div class="form-group">
+                <label>อีเมล</label>
+                <input type="email" id="reg-email" class="auth-input" placeholder="ใส่อีเมลของคุณ">
+            </div>
+            <div class="form-group">
+                <label>รหัสผ่าน</label>
+                <input type="password" id="reg-password" class="auth-input" placeholder="ตั้งรหัสผ่าน">
+            </div>
+            <div class="form-group">
+                <label>วัตถุประสงค์การใช้งาน (Role)</label>
+                <select id="reg-role" class="auth-input">
+                    <option value="buyer">ผู้ซื้อ (สมัครเพื่อเลือกดูสินค้าและซื้อ)</option>
+                    <option value="seller">ผู้ขาย (สมัครเพื่อนำพระเครื่องมาลงตรวจและโชว์)</option>
+                </select>
+            </div>
+            <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="submitRegister()">ยืนยันการสมัคร</button>
+        </div>
+    </div>
+    
+    <!-- ================= MODAL: เข้าสู่ระบบ ================= -->
+    <div id="login-modal" class="auth-modal">
+        <div class="auth-modal-content">
+            <span class="auth-close" onclick="closeModal('login-modal')">&times;</span>
+            <h2 style="margin-bottom: 20px; color: var(--color-text);">เข้าสู่ระบบ</h2>
+            
+            <!-- ✨ แก้ตรงนี้: เปลี่ยนเป็นช่องกรอกอีเมล ✨ -->
+            <div class="form-group">
+                <label>อีเมล</label>
+                <input type="email" id="log-email" class="auth-input" placeholder="ใส่อีเมลของคุณ">
+            </div>
+            
+            <div class="form-group">
+                <label>รหัสผ่าน</label>
+                <input type="password" id="log-password" class="auth-input" placeholder="Password">
+            </div>
+            <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="submitLogin()">เข้าสู่ระบบ</button>
+        </div>
+    </div>
+
+<!-- ================= MODAL: จัดการสมาชิก (เฉพาะแอดมิน) ================= -->
+<div id="manage-users-modal" class="auth-modal">
+    <div class="auth-modal-content" style="max-width: 600px;">
+        <span class="auth-close" onclick="closeModal('manage-users-modal')">&times;</span>
+        <h2 style="margin-bottom: 20px; color: var(--color-text);">
+            <i class="fa-solid fa-users-gear"></i> จัดการสมาชิก
+        </h2>
+        <div id="users-list-container" style="max-height: 400px; overflow-y: auto;">
+            <!-- รายชื่อสมาชิกจากฐานข้อมูลจะมาแสดงตรงนี้ -->
+            <p style="text-align: center; color: var(--color-text);">กรุณาเชื่อมต่อ API หลังบ้าน...</p>
+        </div>
+    </div>
+</div>
+
+    <!-- ================= MODAL: ลงขายพระเครื่อง ================= -->
+    <div id="add-amulet-modal" class="auth-modal">
+        <div class="auth-modal-content">
+            <span class="auth-close" onclick="closeModal('add-amulet-modal')">&times;</span>
+            <h2 style="margin-bottom: 20px; color: var(--color-text);">ลงขายพระเครื่อง</h2>
+            <div class="form-group">
+                <label>ช่องทางการติดต่อ (เบอร์โทร / Line) *</label>
+                <input type="text" id="market-contact" class="auth-input" placeholder="เช่น โทร 081-xxx-xxxx หรือ Line: amulets123">
+            </div>
+            <div class="form-group">
+                <label>ชื่อพระเครื่อง *</label>
+                <input type="text" id="market-name" class="auth-input" placeholder="เช่น พระสมเด็จวัดระฆัง">
+            </div>
+            <div class="form-group">
+                <label>วัด/กรุ</label>
+                <input type="text" id="market-temple" class="auth-input" placeholder="เช่น วัดระฆังโฆสิตาราม">
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <div class="form-group" style="flex: 1;">
+                    <label>ปีที่สร้าง</label>
+                    <input type="text" id="market-year" class="auth-input" placeholder="เช่น 2411">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>ราคา (บาท) *</label>
+                    <input type="number" id="market-price" class="auth-input" placeholder="0">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>รูปภาพพระเครื่อง *</label>
+                <input type="file" id="market-img" class="auth-input" accept="image/*">
+            </div>
+            <button class="btn-primary" style="width: 100%; margin-top: 10px;" onclick="submitAddAmulet()">โพสต์ขาย</button>
+        </div>
+    </div>
+
+    <!-- ================= MAIN APP CONTAINER ================= -->
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-logo">
+                <i class="fa-solid fa-gem gold-glow"></i>
+                <div class="brand-text">
+                    <h1>Smart Amulet Verification</h1>
+                    <p>ระบบตรวจสอบพระเครื่องอัจฉริยะ</p>
+                </div>
+            </div>
+            <div class="system-status">
+                <span class="pulse-indicator"></span>
+                <span id="status-text">ระบบกำลังทำงานปกติ</span>
+            </div>
+        </header>
+
+        <!-- Main Content Grid -->
+        <main class="main-grid">
+            <!-- Left Side: Configuration & Image Uploads -->
+            <section class="card config-panel">
+                <div class="card-header">
+                    <h2><i class="fa-solid fa-sliders"></i> ตั้งค่าการทดสอบ</h2>
+                </div>
+                <div class="card-body">
+                    <!-- Amulet ID Input -->
+                    <div class="form-group">
+                        <label for="amulet-id">รหัสพระเครื่อง (Amulet ID)</label>
+                        <div class="input-with-action">
+                            <input type="text" id="amulet-id" placeholder="ระบุรหัส เช่น AMU-001 หรือ SMDJ-2401">
+                            <button type="button" id="btn-gen-id" class="btn btn-secondary" title="สร้างรหัสอัตโนมัติ">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i> สุ่ม
+                            </button>
+                        </div>
+                        <small class="form-help">หากไม่ระบุ ระบบจะสร้างรหัส AUTO-YYYYMMDD-HHMMSS ให้อัตโนมัติ (ไม่จำเป็นต้องระบุก็ได้หรือจะระบุก็ได้)</small>
+                    </div>
+
+                    <!-- Upload Zones -->
+                    <div class="upload-grid">
+                        <!-- REF Image -->
+                        <div class="upload-box" id="ref-dropzone">
+                            <div class="upload-box-title">
+                                <span class="badge badge-gold">REF</span>
+                                <span>ภาพอ้างอิง (แม่แบบ)</span>
+                            </div>
+                            <input type="file" id="ref-file" accept="image/*" class="file-input-hidden">
+                            <div class="upload-placeholder" id="ref-placeholder">
+                                <i class="fa-regular fa-image upload-icon"></i>
+                                <p>ลากไฟล์มาวาง หรือ <span>คลิกเพื่ออัปโหลด</span></p>
+                                <small>ไฟล์ภาพพระแท้อ้างอิง (JPEG, PNG)</small>
+                            </div>
+                            <div class="upload-preview hidden" id="ref-preview-container">
+                                <img src="" alt="REF Preview" id="ref-img-preview">
+                                <button type="button" class="btn-remove-file" id="btn-remove-ref" title="ลบภาพ">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Candidate Image -->
+                        <div class="upload-box" id="cand-dropzone">
+                            <div class="upload-box-title">
+                                <span class="badge badge-blue">CANDIDATE</span>
+                                <span>ภาพที่ต้องการตรวจ (ตัวอย่าง)</span>
+                            </div>
+                            <input type="file" id="cand-file" accept="image/*" class="file-input-hidden">
+                            <div class="upload-placeholder" id="cand-placeholder">
+                                <i class="fa-regular fa-image upload-icon"></i>
+                                <p>ลากไฟล์มาวาง หรือ <span>คลิกเพื่ออัปโหลด</span></p>
+                                <small>ไฟล์ภาพพระเครื่องที่ต้องการตรวจเทียบ</small>
+                            </div>
+                            <div class="upload-preview hidden" id="cand-preview-container">
+                                <img src="" alt="Candidate Preview" id="cand-img-preview">
+                                <button type="button" class="btn-remove-file" id="btn-remove-cand" title="ลบภาพ">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Button -->
+                    <button type="button" id="btn-inspect" class="btn btn-primary btn-block">
+                        <i class="fa-solid fa-magnifying-glass-chart"></i> เริ่มกระบวนการตรวจสอบ (Inspect)
+                    </button>
+                </div>
+            </section>
+
+            <!-- Right Side: Inspection Results -->
+            <section class="card results-panel">
+                <div class="card-header">
+                    <h2><i class="fa-solid fa-square-poll-vertical"></i> ผลการตรวจสอบ</h2>
+                </div>
+                <div class="card-body">
+                    <!-- Quick Stats Badges -->
+                    <div class="result-stats">
+                        <div class="stat-box decision-box-wrapper">
+                            <span class="stat-label">การตัดสิน (Decision)</span>
+                            <div id="result-decision" class="stat-value state-waiting">-</div>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">คะแนนความต่าง (Score)</span>
+                            <div id="result-score" class="stat-value">-</div>
+                            <div class="progress-bar-container">
+                                <div class="progress-bar" id="score-progress" style="width: 0%;"></div>
+                            </div>
+                            <div class="threshold-marker">เกณฑ์ตัดสิน: ≤ 24.000 px</div>
+                        </div>
+                    </div>
+
+                    <!-- Visual Comparison Tabs -->
+                    <div class="results-visual-tabs">
+                        <div class="tabs-header">
+                            <button type="button" class="tab-btn active" data-tab="tab-overlay">
+                                <i class="fa-solid fa-object-group"></i> ผลตรวจจับและการเปรียบเทียบ (Overlay)
+                            </button>
+                            <button type="button" class="tab-btn" data-tab="tab-ref-contour">
+                                <i class="fa-solid fa-circle-nodes"></i> โครงสร้างรูปทรงภาพอ้างอิง (REF Contour)
+                            </button>
+                        </div>
+                        <div class="tabs-content">
+                            <!-- Tab: Overlay Image -->
+                            <div class="tab-panel active" id="tab-overlay">
+                                <div class="visual-container">
+                                    <div class="visual-placeholder" id="overlay-placeholder">
+                                        <i class="fa-solid fa-object-compare placeholder-icon"></i>
+                                        <p>ภาพเปรียบเทียบและวิเคราะห์ค่าคลาดเคลื่อนจะแสดงขึ้นที่นี่</p>
+                                    </div>
+                                    <div class="visual-image-wrapper hidden" id="overlay-image-container">
+                                        <img src="" alt="Overlay Analysis" id="img-overlay" class="zoomable-image">
+                                        <div class="image-zoom-hint"><i class="fa-solid fa-expand"></i> คลิกเพื่อดูรูปขนาดเต็ม</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Tab: REF Contour Debug Image -->
+                            <div class="tab-panel" id="tab-ref-contour">
+                                <div class="visual-container">
+                                    <div class="visual-placeholder" id="ref-contour-placeholder">
+                                        <i class="fa-solid fa-vector-square placeholder-icon"></i>
+                                        <p>ภาพโครงสร้างและจุดตรวจสอบรูปทรง (P* Points) จะแสดงขึ้นที่นี่</p>
+                                    </div>
+                                    <div class="visual-image-wrapper hidden" id="ref-contour-image-container">
+                                        <img src="" alt="REF Contour Debug" id="img-ref-contour" class="zoomable-image">
+                                        <div class="image-zoom-hint"><i class="fa-solid fa-expand"></i> คลิกเพื่อดูรูปขนาดเต็ม</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Note Summary -->
+                    <div class="note-summary">
+                        <label><i class="fa-solid fa-circle-info"></i> บันทึกผลลัพธ์และคำอธิบาย (Summary Notes)</label>
+                        <div id="result-notes" class="notes-content">ยังไม่มีข้อมูลการวิเคราะห์</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- History & Database Section -->
+        <section class="card history-section">
+            <div class="card-header history-header-wrapper">
+                <div class="title-left">
+                    <h2><i class="fa-solid fa-history"></i> ประวัติการตรวจสอบและฐานข้อมูล</h2>
+                    <span class="badge badge-info" id="history-count">แสดงทั้งหมด 0 รายการ</span>
+                </div>
+                <div class="header-actions">
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                        <input type="text" id="history-search" placeholder="ค้นหา Amulet ID...">
+                    </div>
+                    <button type="button" id="btn-refresh-history" class="btn btn-secondary" title="ดึงข้อมูลใหม่">
+                        <i class="fa-solid fa-arrows-rotate"></i> รีเฟรช
+                    </button>
+                    <a id="btn-download-csv" href="/api/download-csv" target="_blank" class="btn btn-secondary" title="ดาวน์โหลดไฟล์ Log.csv">
+                        <i class="fa-solid fa-download"></i> ดาวน์โหลด CSV
+                    </a>
+                    <button type="button" id="btn-clear-history" class="btn btn-danger" title="ล้างประวัติการทดสอบทั้งหมด">
+                        <i class="fa-solid fa-trash-can"></i> ล้างประวัติ
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <!-- Gallery of recent thumbnails -->
+                <div class="history-gallery-title">
+                    <h3><i class="fa-solid fa-images"></i> ภาพประวัติการทดสอบล่าสุด (Inspection Gallery)</h3>
+                </div>
+                <div class="history-gallery" id="history-gallery-container">
+                    <div class="gallery-empty">ไม่มีภาพประวัติการตรวจ</div>
+                </div>
+
+                <!-- Table representation -->
+                <div class="history-table-wrapper">
+                    <table class="history-table" id="table-history">
+                        <thead>
+                            <tr>
+                                <th>วันเวลาที่ตรวจสอบ (Timestamp)</th>
+                                <th>รหัสพระเครื่อง (Amulet ID)</th>
+                                <th>คะแนนคลาดเคลื่อน (Score)</th>
+                                <th>ผลการตัดสิน (Decision)</th>
+                                <th>ค่าเกณฑ์กำหนด (Threshold)</th>
+                                <th>จำนวนจุดที่เทียบ (P*)</th>
+                                <th>อัลกอริทึม (Method)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history-table-body">
+                            <tr>
+                                <td colspan="7" class="table-empty">ไม่มีข้อมูลประวัติ</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= ตลาดพระเครื่อง (Marketplace) - ย้ายมาอยู่ด้านล่างสุด ================= -->
+        <section class="card" style="margin-top: 30px; padding: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="color: var(--color-text);"><i class="fa-solid fa-store" style="color: #ffd700;"></i> ตลาดพระเครื่อง (Marketplace)</h2>
+                <button id="btn-show-add-amulet" class="btn-primary" style="display: none;" onclick="openModal('add-amulet-modal')">
+                    <i class="fa-solid fa-plus"></i> ลงขายพระเครื่อง
+                </button>
+            </div>
+            <div id="marketplace-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px;">
+                
+                <p style="color: var(--color-text-muted);">กำลังโหลดข้อมูลตลาด...</p>
+            </div>
+        </section>
+    </div>
+
+    <!-- Image Modal Viewer -->
+    <div id="image-modal" class="modal">
+        <span class="modal-close">&times;</span>
+        <div class="modal-content-wrapper">
+            <img class="modal-content" id="modal-img" src="">
+            <div id="modal-caption" class="modal-caption"></div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay hidden" id="loading-overlay">
+        <div class="loading-spinner-wrapper">
+            <div class="loading-spinner"></div>
+            <div class="loading-logo">
+                <i class="fa-solid fa-gem gold-glow pulse"></i>
+            </div>
+        </div>
+        <p class="loading-text" id="loading-text">กำลังเริ่มต้นประมวลผลระบบตรวจสอบ...</p>
+        <div class="loading-steps">
+            <div class="loading-step active" id="step-preprocess"><i class="fa-solid fa-check-circle"></i> ปรับแต่งรูปภาพและตรวจหา Contour</div>
+            <div class="loading-step" id="step-align"><i class="fa-solid fa-circle"></i> จัดแนวภาพตัวอย่าง (Perspective Warp)</div>
+            <div class="loading-step" id="step-score"><i class="fa-solid fa-circle"></i> วิเคราะห์เปรียบเทียบจุด P* และคำนวณคะแนน</div>
+        </div>
+    </div>
+
+<!-- ================= MODAL: สนใจติดต่อ ================= -->
+<div id="contact-modal" class="auth-modal">
+    <div class="auth-modal-content" style="max-width: 400px; text-align: center;">
+        <span class="auth-close" onclick="closeModal('contact-modal')">&times;</span>
+        <h2 style="margin-bottom: 15px; color: var(--color-text);">
+            <i class="fa-solid fa-phone"></i> สนใจสั่งซื้อพระเครื่อง
+        </h2>
+        <div style="background: rgba(0, 0, 0, 0.05); padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <p style="margin: 10px 0; font-size: 1.1rem; color: var(--color-text);">
+                <strong>ผู้ลงขาย:</strong> <span id="show-seller-name"></span>
+            </p>
+            <p style="margin: 10px 0; font-size: 1.1rem; color: var(--color-text);">
+                <strong>ช่องทางการติดต่อ:</strong><br>
+                <span id="show-contact-info" style="color: #ef4444; font-weight: bold; font-size: 1.3rem; display: inline-block; margin-top: 10px;"></span>
+            </p>
+        </div>
+        <button class="btn-primary" style="width: 100%; font-size: 1rem;" onclick="closeModal('contact-modal')">ตกลง</button>
+    </div>
+</div>
+
+    <!-- Script JavaScript -->
+    <script src="main.js?v=999"></script>
+</body>
+</html>
