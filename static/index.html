@@ -92,6 +92,15 @@
         <h2 style="margin-bottom: 20px; color: var(--color-text);">
             <i class="fa-solid fa-users-gear"></i> จัดการสมาชิก
         </h2>
+
+        <!-- ✨ เพิ่มปุ่มดาวน์โหลด Excel ตรงนี้ครับ ✨ -->
+        <div style="margin-bottom: 20px; text-align: right;">
+            <button onclick="window.location.href='/api/reports/daily-sales'" 
+                    style="background-color: #28a745; color: white; padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; display: inline-flex; align-items: center; gap: 10px; box-shadow: 0px 4px 6px rgba(0,0,0,0.1);">
+                📊 ดาวน์โหลดสรุปยอดขายรายวัน (Excel)
+            </button>
+        </div>
+
         <div id="users-list-container" style="max-height: 400px; overflow-y: auto;">
             <!-- รายชื่อสมาชิกจากฐานข้อมูลจะมาแสดงตรงนี้ -->
             <p style="text-align: center; color: var(--color-text);">กรุณาเชื่อมต่อ API หลังบ้าน...</p>

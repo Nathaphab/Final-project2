@@ -572,13 +572,20 @@ def draw_thai_text_on_cv_image(image_cv, text, position, font_path, font_size, c
 
 @app.post("/api/register")
 def api_register(user: UserRegister):
+    import re  # นำเข้าตัวตรวจจับรูปแบบตัวอักษร
+    
     if user.role not in ['buyer', 'seller']:
         return {"success": False, "message": "Role ไม่ถูกต้อง"}
+
+    # ✨ เพิ่มระบบดักจับรูปแบบอีเมลตรงนี้ (ห้ามพิมพ์มั่ว / ห้ามพิมพ์ไทย)
+    email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+    if not re.match(email_regex, user.email):
+        return {"success": False, "message": "รูปแบบอีเมลไม่ถูกต้อง กรุณากรอกอีเมลให้ถูกหลัก (เช่น name@gmail.com)"}
 
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     try:
-        # ✨ เช็คแค่อีเมลซ้ำอย่างเดียว (ชื่อผู้ใช้ปล่อยผ่านได้เลย)
+        # เช็คแค่อีเมลซ้ำอย่างเดียว (ชื่อผู้ใช้ปล่อยผ่านได้เลย)
         c.execute("SELECT id FROM users WHERE email=?", (user.email,))
         if c.fetchone():
             return {"success": False, "message": "อีเมลนี้ถูกใช้สมัครไปแล้ว กรุณาใช้อีเมลอื่น"}
@@ -956,16 +963,21 @@ def api_mark_sold(amulet_id: int):
         return {"success": False, "message": str(e)}
     
 
-# ================= API: ระบบลบพระเครื่อง (เฉพาะ Admin) =================
+# ================= API: ระบบลบพระเครื่อง (เฉพาะ Admin เท่านั้น) =================
 @app.delete("/api/amulets/{amulet_id}")
-def api_delete_amulet(amulet_id: int):
+def api_delete_amulet(amulet_id: int, role: str = ""):
+    # ✨ เช็คสิทธิ์: ถ้าไม่ใช่แอดมิน ให้บล็อกทันที
+    if role != 'admin':
+        return {"success": False, "message": "ผู้ขายไม่อนุญาตให้ลบข้อมูลสินค้า เพื่อเก็บไว้เป็นประวัติการซื้อขาย"}
+        
+    # ✨ ถ้าเป็นแอดมิน (role == 'admin') ให้ข้ามมาทำคำสั่งลบด้านล่างนี้ได้เลย
     try:
         conn = sqlite3.connect(DB_FILE)
         c = conn.cursor()
         c.execute("DELETE FROM amulets WHERE id = ?", (amulet_id,))
         conn.commit()
         conn.close()
-        return {"success": True, "message": "ลบรายการพระเครื่องสำเร็จ"}
+        return {"success": True, "message": "แอดมินลบรายการพระเครื่องสำเร็จ"}
     except Exception as e:
         return {"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}
 
@@ -988,6 +1000,50 @@ def get_all_users():
             "role": r[3]
         })
     return users_list
+
+# ✨ เอาโค้ด Excel ของเรามาวางต่อตรงนี้เลยครับ (ให้อยู่กลุ่มเดียวกัน) ✨
+# ================= API: สรุปยอดขายรายวันเป็น Excel (CSV) =================
+@app.get("/api/reports/daily-sales")
+def api_daily_sales_report():
+    import pandas as pd
+    import os
+    from fastapi.responses import FileResponse, JSONResponse
+    import sqlite3
+
+    try:
+        conn = sqlite3.connect(DB_FILE) 
+        
+        # ✨ แก้ตรงนี้แล้ว: ใช้ a.seller_id และเอาเงื่อนไข status ออกไปก่อน ✨
+        query = """
+            SELECT 
+                u.username,
+                a.name,
+                a.price,
+                a.created_at
+            FROM amulets a
+            LEFT JOIN users u ON a.seller_id = u.id
+        """
+        df = pd.read_sql_query(query, conn)
+        conn.close()
+
+        if df.empty:
+            return JSONResponse(status_code=404, content={"message": "ยังไม่มีข้อมูลพระเครื่องในระบบ"})
+
+        # ปรับแต่งคอลัมน์ให้เป็นภาษาไทย
+        df['วันที่ลงขาย'] = pd.to_datetime(df['created_at']).dt.date
+        df.rename(columns={'username': 'ชื่อผู้ขาย', 'name': 'ชื่อพระเครื่อง', 'price': 'ราคา (บาท)'}, inplace=True)
+        df = df[['วันที่ลงขาย', 'ชื่อผู้ขาย', 'ชื่อพระเครื่อง', 'ราคา (บาท)']]
+        
+        # คำนวณยอดรวมของแต่ละคน
+        df['ยอดรวมของคนนี้ (บาท)'] = df.groupby('ชื่อผู้ขาย')['ราคา (บาท)'].transform('sum')
+
+        # เซฟเป็นไฟล์ CSV แบบรองรับภาษาไทย
+        report_path = "daily_sales_report.csv"
+        df.to_csv(report_path, index=False, encoding='utf-8-sig')
+
+        return FileResponse(report_path, media_type="text/csv", filename="สรุปยอดขาย.csv")
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"message": f"เกิดข้อผิดพลาด: {str(e)}"})
 
 @app.delete("/api/users/{user_id}")
 def delete_user(user_id: int):
@@ -1013,6 +1069,46 @@ def delete_user(user_id: int):
         return {"success": True, "message": "ลบสำเร็จ"}
     except Exception as e:
         return JSONResponse(status_code=500, content={"message": str(e)})
+# ================= API: สรุปยอดขายรายวันเป็น Excel (CSV) =================
+@app.get("/api/reports/daily-sales")
+def api_daily_sales_report():
+    import pandas as pd
+    import os
+    from fastapi.responses import FileResponse, JSONResponse
+    import sqlite3
+
+    try:
+        conn = sqlite3.connect(DB_FILE) 
+        
+        # ดึงข้อมูลเฉพาะรายการที่ขายแล้ว โดยใช้ seller_id
+        query = """
+            SELECT 
+                u.username,
+                a.name,
+                a.price,
+                a.created_at
+            FROM amulets a
+            LEFT JOIN users u ON a.seller_id = u.id
+            WHERE a.status = 'sold'
+        """
+        df = pd.read_sql_query(query, conn)
+        conn.close()
+
+        if df.empty:
+            return JSONResponse(status_code=404, content={"message": "ยังไม่มีประวัติการขายในระบบ"})
+
+        # ปรับแต่งคอลัมน์ให้เป็นภาษาไทย
+        df['วันที่ขาย'] = pd.to_datetime(df['created_at']).dt.date
+        df.rename(columns={'username': 'ชื่อผู้ขาย', 'name': 'ชื่อพระเครื่อง', 'price': 'ราคาที่ขายได้ (บาท)'}, inplace=True)
+        df = df[['วันที่ขาย', 'ชื่อผู้ขาย', 'ชื่อพระเครื่อง', 'ราคาที่ขายได้ (บาท)']]
+        df['ยอดรวมของคนนี้ (บาท)'] = df.groupby('ชื่อผู้ขาย')['ราคาที่ขายได้ (บาท)'].transform('sum')
+
+        report_path = "daily_sales_report.csv"
+        df.to_csv(report_path, index=False, encoding='utf-8-sig')
+
+        return FileResponse(report_path, media_type="text/csv", filename="สรุปยอดขายรายวัน.csv")
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"message": f"เกิดข้อผิดพลาด: {str(e)}"})
 
 # ================= Static File Mounting =================
 app.mount("/market_images", StaticFiles(directory="outputs/market_images"), name="market_images")
