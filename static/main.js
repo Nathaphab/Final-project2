@@ -435,10 +435,16 @@ window.submitAddAmulet = async () => {
 window.deleteAmulet = async (amuletId) => {
     if (!confirm('แน่ใจหรือไม่ว่าต้องการลบพระเครื่องรายการนี้ออกจากตลาด?')) return;
     try {
-        const res = await fetch(`/api/amulets/${amuletId}`, { method: 'DELETE' });
+        // ✨ ดึงข้อมูลผู้ใช้งานปัจจุบันเพื่อเอาค่า role ส่งไปให้หลังบ้านตรวจสอบ
+        const user = getSafeUser();
+        const userRole = user ? user.role : '';
+
+        // ✨ แนบ ?role=${userRole} ไปกับ URL ด้วย
+        const res = await fetch(`/api/amulets/${amuletId}?role=${userRole}`, { method: 'DELETE' });
         const data = await res.json();
+        
         if (data.success) {
-            alert('ลบรายการสำเร็จครับ!');
+            alert(data.message || 'ลบรายการสำเร็จครับ!');
             window.fetchMarketplace(); 
         } else {
             alert(data.message || 'ลบไม่สำเร็จ');
