@@ -109,6 +109,19 @@ def init_db():
                     role TEXT NOT NULL,
                     status TEXT DEFAULT 'active'
                  )''')
+
+    # 🌟 เพิ่มตารางคำสั่งซื้อใหม่ตรงนี้ 🌟
+    c.execute('''CREATE TABLE IF NOT EXISTS orders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    amulet_id INTEGER,
+                    buyer_id INTEGER,
+                    buyer_name TEXT,
+                    buyer_phone TEXT,
+                    buyer_address TEXT,
+                    total_amount REAL,
+                    status TEXT DEFAULT 'pending',
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                 )''')
     
     # สร้างบัญชี Admin อัตโนมัติ (เปลี่ยนไปใช้อีเมล)
     c.execute("SELECT * FROM users WHERE email = 'admin@system.com'")
@@ -133,6 +146,14 @@ class UserLogin(BaseModel):
     email: str      # ✨ เปลี่ยนจาก username เป็น email
     password: str
 
+# 🌟 เพิ่มโมเดลรับข้อมูลที่อยู่จัดส่งตรงนี้ 🌟
+class OrderCreate(BaseModel):
+    amulet_id: int
+    buyer_id: int
+    buyer_name: str
+    buyer_phone: str
+    buyer_address: str
+    total_amount: float
 
 # ================= Utility Functions =================
 def ensure_rgb(img: np.ndarray) -> np.ndarray:
@@ -1001,50 +1022,6 @@ def get_all_users():
         })
     return users_list
 
-# ✨ เอาโค้ด Excel ของเรามาวางต่อตรงนี้เลยครับ (ให้อยู่กลุ่มเดียวกัน) ✨
-# ================= API: สรุปยอดขายรายวันเป็น Excel (CSV) =================
-@app.get("/api/reports/daily-sales")
-def api_daily_sales_report():
-    import pandas as pd
-    import os
-    from fastapi.responses import FileResponse, JSONResponse
-    import sqlite3
-
-    try:
-        conn = sqlite3.connect(DB_FILE) 
-        
-        # ✨ แก้ตรงนี้แล้ว: ใช้ a.seller_id และเอาเงื่อนไข status ออกไปก่อน ✨
-        query = """
-            SELECT 
-                u.username,
-                a.name,
-                a.price,
-                a.created_at
-            FROM amulets a
-            LEFT JOIN users u ON a.seller_id = u.id
-        """
-        df = pd.read_sql_query(query, conn)
-        conn.close()
-
-        if df.empty:
-            return JSONResponse(status_code=404, content={"message": "ยังไม่มีข้อมูลพระเครื่องในระบบ"})
-
-        # ปรับแต่งคอลัมน์ให้เป็นภาษาไทย
-        df['วันที่ลงขาย'] = pd.to_datetime(df['created_at']).dt.date
-        df.rename(columns={'username': 'ชื่อผู้ขาย', 'name': 'ชื่อพระเครื่อง', 'price': 'ราคา (บาท)'}, inplace=True)
-        df = df[['วันที่ลงขาย', 'ชื่อผู้ขาย', 'ชื่อพระเครื่อง', 'ราคา (บาท)']]
-        
-        # คำนวณยอดรวมของแต่ละคน
-        df['ยอดรวมของคนนี้ (บาท)'] = df.groupby('ชื่อผู้ขาย')['ราคา (บาท)'].transform('sum')
-
-        # เซฟเป็นไฟล์ CSV แบบรองรับภาษาไทย
-        report_path = "daily_sales_report.csv"
-        df.to_csv(report_path, index=False, encoding='utf-8-sig')
-
-        return FileResponse(report_path, media_type="text/csv", filename="สรุปยอดขาย.csv")
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"message": f"เกิดข้อผิดพลาด: {str(e)}"})
-
 @app.delete("/api/users/{user_id}")
 def delete_user(user_id: int):
     try:
@@ -1109,6 +1086,75 @@ def api_daily_sales_report():
         return FileResponse(report_path, media_type="text/csv", filename="สรุปยอดขายรายวัน.csv")
     except Exception as e:
         return JSONResponse(status_code=500, content={"message": f"เกิดข้อผิดพลาด: {str(e)}"})
+
+# ================= API: ระบบจัดการคำสั่งซื้อ (Orders) =================
+
+@app.post("/api/orders/create")
+def api_create_order(order: OrderCreate):
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        
+        # 1. บันทึกที่อยู่และเบอร์โทรลงตาราง orders
+        c.execute('''INSERT INTO orders 
+                     (amulet_id, buyer_id, buyer_name, buyer_phone, buyer_address, total_amount, status) 
+                     VALUES (?, ?, ?, ?, ?, ?, 'pending')''',
+                  (order.amulet_id, order.buyer_id, order.buyer_name, order.buyer_phone, order.buyer_address, order.total_amount))
+        
+        # 2. เปลี่ยนสถานะพระเครื่องว่า 'ขายแล้ว'
+        c.execute("UPDATE amulets SET status = 'sold' WHERE id = ?", (order.amulet_id,))
+        
+        conn.commit()
+        conn.close()
+        return {"success": True, "message": "สั่งซื้อสำเร็จ! รอผู้ขายจัดส่ง"}
+    except Exception as e:
+        return {"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}
+
+@app.get("/api/orders/seller/{seller_id}")
+def api_get_seller_orders(seller_id: int):
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        # ดึงออเดอร์เฉพาะของพระเครื่องที่ผู้ขายคนนี้เป็นคนลงขาย
+        c.execute('''
+            SELECT o.id, a.name, a.price, o.buyer_name, o.buyer_phone, o.buyer_address, o.status, o.created_at, o.amulet_id
+            FROM orders o
+            JOIN amulets a ON o.amulet_id = a.id
+            WHERE a.seller_id = ?
+            ORDER BY o.created_at DESC
+        ''', (seller_id,))
+        rows = c.fetchall()
+        conn.close()
+        
+        orders = []
+        for r in rows:
+            orders.append({
+                "order_id": r[0],
+                "amulet_name": r[1],
+                "price": r[2],
+                "buyer_name": r[3],
+                "buyer_phone": r[4],
+                "buyer_address": r[5],
+                "status": r[6],
+                "created_at": r[7],
+                "amulet_id": r[8]
+            })
+        return {"success": True, "orders": orders}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.post("/api/orders/{order_id}/update-status")
+def api_update_order_status(order_id: int, status: str = Form(...)):
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        # อัปเดตสถานะ เช่น 'shipped' (จัดส่งแล้ว) หรือ 'delivered'
+        c.execute("UPDATE orders SET status = ? WHERE id = ?", (status, order_id))
+        conn.commit()
+        conn.close()
+        return {"success": True, "message": f"อัปเดตสถานะการจัดส่งเรียบร้อย!"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
 
 # ================= Static File Mounting =================
 app.mount("/market_images", StaticFiles(directory="outputs/market_images"), name="market_images")

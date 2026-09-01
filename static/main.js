@@ -74,8 +74,13 @@ const checkLoginStatus = () => {
     if (user) {
         let roleTh = user.role === 'seller' ? 'ผู้ขาย' : (user.role === 'buyer' ? 'ผู้ซื้อ' : 'แอดมิน');
         if(navAuth) {
+            let orderBtnHTML = (user.role === 'seller' || user.role === 'admin') 
+                ? `<button class="btn-primary" style="margin: 0 10px; background-color: #f59e0b;" onclick="openSellerOrders()">📦 ออเดอร์ลูกค้า</button>` 
+                : '';
+                
             navAuth.innerHTML = `
                 <span class="user-badge"><i class="fa-solid fa-user-circle"></i> ${user.username} (${roleTh})</span>
+                ${orderBtnHTML}
                 <button class="btn-text text-danger" onclick="logout()">ออกจากระบบ</button>
             `;
         }
@@ -329,7 +334,7 @@ window.fetchMarketplace = async () => {
                 } else {
                     let buyBtnHTML = '';
                     if (user && !isOwner) { 
-                        buyBtnHTML = `<button style="padding: 5px 10px; font-size: 0.8rem; background-color: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;" onclick="markAsSold(${amulet.id})">🛒 ซื้อเลย</button>`;
+                        buyBtnHTML = `<button style="padding: 5px 10px; font-size: 0.8rem; background-color: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;" onclick="markAsSold(${amulet.id})">🛒 ซื้อเลย</button>`;buyBtnHTML = `<button style="padding: 5px 10px; font-size: 0.8rem; background-color: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;" onclick="openOrderModal(${amulet.id}, ${amulet.price})">🛒 ซื้อเลย</button>`;
                     } else if (user && isOwner) { 
                         buyBtnHTML = `<button style="padding: 5px 10px; font-size: 0.8rem; background-color: #f59e0b; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;" onclick="markAsSold(${amulet.id})">ปิดการขาย</button>`;
                     }
@@ -954,3 +959,139 @@ const applyRolePermissions = () => {
     });
 };
 setInterval(applyRolePermissions, 500);
+
+// ================= Order Management =================
+function openOrderModal(amuletId, price) {
+    document.getElementById('orderAmuletId').value = amuletId;
+    document.getElementById('orderTotalAmount').value = price;
+    document.getElementById('orderModal').style.display = 'block';
+}
+
+function closeOrderModal() {
+    document.getElementById('orderModal').style.display = 'none';
+}
+
+async function submitOrder(e) {
+    e.preventDefault();
+    
+    // ดึง user_id จากระบบ Login (สมมติว่าพี่เก็บไว้ใน localStorage)
+    const buyerId = localStorage.getItem('user_id') || 1; 
+
+    const orderData = {
+        amulet_id: parseInt(document.getElementById('orderAmuletId').value),
+        buyer_id: parseInt(buyerId),
+        buyer_name: document.getElementById('buyerName').value,
+        buyer_phone: document.getElementById('buyerPhone').value,
+        buyer_address: document.getElementById('buyerAddress').value,
+        total_amount: parseFloat(document.getElementById('orderTotalAmount').value)
+    };
+
+    try {
+        const response = await fetch('/api/orders/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(orderData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('สั่งซื้อสำเร็จ! รอผู้ขายจัดส่ง');
+            closeOrderModal();
+            location.reload(); // รีเฟรชหน้าเพื่ออัปเดตสถานะเป็น "ขายแล้ว"
+        } else {
+            alert('เกิดข้อผิดพลาด: ' + result.message);
+        }
+    } catch (err) {
+        console.error(err);
+        alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+    }
+}
+
+// ================= Seller Dashboard (ระบบจัดการคำสั่งซื้อ) =================
+window.openSellerOrders = () => {
+    openModal('sellerOrdersModal');
+    window.fetchSellerOrders();
+};
+
+window.fetchSellerOrders = async () => {
+    const container = document.getElementById('seller-orders-container');
+    const user = getSafeUser();
+    if (!user) return;
+    
+    // ดึง ID ของผู้ขายที่ล็อกอินอยู่
+    const sellerId = user.id || user.user_id;
+    container.innerHTML = '<p style="text-align: center; color: #666;">กำลังโหลดข้อมูล...</p>';
+    
+    try {
+        const response = await fetch(`/api/orders/seller/${sellerId}`);
+        const data = await response.json();
+        
+        if (data.success && data.orders.length > 0) {
+            let html = `
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #ddd; background-color: #f9f9f9;">
+                            <th style="padding: 10px;">วันที่สั่งซื้อ</th>
+                            <th style="padding: 10px;">ชื่อพระเครื่อง</th>
+                            <th style="padding: 10px;">ข้อมูลลูกค้า</th>
+                            <th style="padding: 10px;">ที่อยู่จัดส่ง</th>
+                            <th style="padding: 10px;">ยอดสุทธิ</th>
+                            <th style="padding: 10px;">การจัดส่ง</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.orders.forEach(o => {
+                let statusColor = o.status === 'pending' ? '#ef4444' : (o.status === 'shipped' ? '#10b981' : '#3b82f6');
+                
+                html += `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px;">${o.created_at.split(' ')[0]}</td>
+                        <td style="padding: 10px; font-weight: bold; color: #333;">${o.amulet_name}</td>
+                        <td style="padding: 10px;">${o.buyer_name}<br><span style="color: #666;"><i class="fa-solid fa-phone"></i> ${o.buyer_phone}</span></td>
+                        <td style="padding: 10px; max-width: 250px; line-height: 1.4;">${o.buyer_address}</td>
+                        <td style="padding: 10px; color: #d97706; font-weight: bold;">฿${o.price.toLocaleString()}</td>
+                        <td style="padding: 10px;">
+                            <select onchange="updateOrderStatus(${o.order_id}, this.value)" style="padding: 6px; border-radius: 4px; border: 2px solid ${statusColor}; font-weight: bold; cursor: pointer; outline: none;">
+                                <option value="pending" ${o.status === 'pending' ? 'selected' : ''}>รอจัดส่ง ⏳</option>
+                                <option value="shipped" ${o.status === 'shipped' ? 'selected' : ''}>จัดส่งแล้ว 🚚</option>
+                                <option value="delivered" ${o.status === 'delivered' ? 'selected' : ''}>ลูกค้าได้รับของ ✅</option>
+                            </select>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">ยังไม่มีคำสั่งซื้อเข้ามาในระบบครับ</p>';
+        }
+    } catch (err) {
+        container.innerHTML = '<p style="text-align: center; color: red;">โหลดข้อมูลล้มเหลว กรุณาลองใหม่</p>';
+    }
+};
+
+window.updateOrderStatus = async (orderId, newStatus) => {
+    try {
+        const formData = new FormData();
+        formData.append('status', newStatus);
+        
+        const response = await fetch(`/api/orders/${orderId}/update-status`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+        
+        if (!data.success) {
+            alert('อัปเดตสถานะไม่สำเร็จ: ' + data.message);
+        } else {
+            // โหลดสีขอบ Dropdown ใหม่ให้ตรงกับสถานะ
+            window.fetchSellerOrders(); 
+        }
+    } catch (err) {
+        alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+    }
+};

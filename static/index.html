@@ -420,5 +420,41 @@
 
     <!-- Script JavaScript -->
     <script src="main.js?v=999"></script>
+<!-- Modal สำหรับกรอกข้อมูลสั่งซื้อ -->
+<div id="orderModal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <span class="close-btn" onclick="closeOrderModal()">&times;</span>
+    <h3>ที่อยู่สำหรับจัดส่ง</h3>
+    <form id="orderForm" onsubmit="submitOrder(event)">
+      <!-- เก็บซ่อนข้อมูลสินค้าไว้ในฟอร์ม -->
+      <input type="hidden" id="orderAmuletId">
+      <input type="hidden" id="orderTotalAmount">
+      
+      <div class="form-group">
+        <label>ชื่อ-นามสกุล:</label>
+        <input type="text" id="buyerName" required>
+      </div>
+      <div class="form-group">
+        <label>เบอร์โทรศัพท์:</label>
+        <input type="tel" id="buyerPhone" required>
+      </div>
+      <div class="form-group">
+        <label>ที่อยู่จัดส่ง:</label>
+        <textarea id="buyerAddress" rows="3" required></textarea>
+      </div>
+      <button type="submit" class="submit-btn">ยืนยันการสั่งซื้อ</button>
+    </form>
+  </div>
+</div>
+<!-- Modal สำหรับจัดการคำสั่งซื้อ (Seller Dashboard) -->
+<div id="sellerOrdersModal" class="modal" style="display: none;">
+  <div class="modal-content" style="max-width: 900px; width: 95%;">
+    <span class="close-btn" onclick="closeModal('sellerOrdersModal')">&times;</span>
+    <h3 style="margin-bottom: 20px; color: #d97706;"><i class="fa-solid fa-box"></i> รายการคำสั่งซื้อของลูกค้า</h3>
+    <div id="seller-orders-container" style="overflow-x: auto;">
+        <!-- ตารางออเดอร์จะถูกสร้างตรงนี้อัตโนมัติ -->
+    </div>
+  </div>
+</div>
 </body>
 </html>
