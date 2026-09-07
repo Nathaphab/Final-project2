@@ -1,3 +1,18 @@
+import time
+import os
+import cv2
+import numpy as np
+from fastapi import UploadFile, File, Form
+from ultralytics import YOLO
+
+# โหลดโมเดล YOLO เตรียมไว้ตั้งแต่เริ่มรันเซิร์ฟเวอร์
+try:
+    yolo_model = YOLO("models/best.pt")
+    print("✅ โหลดโมเดล YOLO สำเร็จ!")
+except Exception as e:
+    yolo_model = None
+    print(f"❌ ไม่สามารถโหลดโมเดลได้: {e}")
+
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 import cv2
@@ -383,22 +398,6 @@ def align_candidate_to_ref(ref_rgb: np.ndarray, ref_cnt: np.ndarray,
     cx_cand = M_cand['m10'] / M_cand['m00'] if M_cand['m00'] != 0 else 0
     cy_cand = M_cand['m01'] / M_cand['m00'] if M_cand['m00'] != 0 else 0
 
-    mu20 = M_ref['mu20']
-    mu02 = M_ref['mu02']
-    mu11 = M_ref['mu11']
-    if (mu20 - mu02) != 0:
-        angle_ref = 0.5 * np.arctan2(2 * mu11, (mu20 - mu02))
-    else:
-        angle_ref = 0.0
-
-    mu20_c = M_cand['mu20']
-    mu02_c = M_cand['mu02']
-    mu11_c = M_cand['mu11']
-    if (mu20_c - mu02_c) != 0:
-        angle_cand = 0.5 * np.arctan2(2 * mu11_c, (mu20_c - mu02_c))
-    else:
-        angle_cand = 0.0
-
     area_ref = cv2.contourArea(ref_cnt)
     area_cand = cv2.contourArea(cand_cnt)
     if area_cand == 0:
@@ -407,14 +406,8 @@ def align_candidate_to_ref(ref_rgb: np.ndarray, ref_cnt: np.ndarray,
         scale = np.sqrt(area_ref / area_cand)
         scale = np.clip(scale, 0.3, 3.0)
 
-    delta_angle = angle_ref - angle_cand
-
-    # 🌟 จุดที่เพิ่มเข้ามาเพื่อแก้ปัญหาภาพตีลังกากลับหัว 🌟
-    if delta_angle > np.pi / 2:
-        delta_angle -= np.pi
-    elif delta_angle < -np.pi / 2:
-        delta_angle += np.pi
-    # --------------------------------------------------
+    # ✨ ปิดระบบคำนวณการหมุน บังคับให้องศาเป็น 0 เสมอ ภาพจะได้ไม่เอียง ✨
+    delta_angle = 0.0 
 
     cos_a = np.cos(delta_angle)
     sin_a = np.sin(delta_angle)
@@ -682,12 +675,16 @@ def api_get_stats():
     }
 
 @app.post("/api/inspect")
-async def api_inspect(
-    amulet_id: str = Form(""),
-    ref_file: UploadFile = File(...),
+async def inspect_amulet(
+    amulet_id: str = Form(""), 
+    ref_file: UploadFile = File(...), 
     cand_file: UploadFile = File(...)
 ):
+    if yolo_model is None:
+        return {"success": False, "error_message": "ระบบ AI ยังไม่พร้อมทำงาน"}
+
     try:
+        # --- 1. อ่านรูปภาพ ---
         ref_bytes = await ref_file.read()
         cand_bytes = await cand_file.read()
 
@@ -700,51 +697,82 @@ async def api_inspect(
         if ref_img is None or cand_img is None:
             return {"success": False, "error_message": "กรุณาอัปโหลดรูปภาพที่ถูกต้อง"}
 
-        ref_img_rgb = cv2.cvtColor(ref_img, cv2.COLOR_BGR2RGB)
-        cand_img_rgb = cv2.cvtColor(cand_img, cv2.COLOR_BGR2RGB)
-
         final_id = amulet_id_or_auto(amulet_id)
         safe_id = sanitize_id(final_id)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
+        # ==================================================
+        # ด่านที่ 1: ตรวจด้วย AI (YOLO) กรองพิมพ์พระให้ตรงกัน
+        # ==================================================
+        ref_results = yolo_model(ref_img)[0]
+        cand_results = yolo_model(cand_img)[0]
+
+        ref_cls, cand_cls = None, None
+        best_conf_val = 0.0
+
+        if hasattr(ref_results, 'boxes') and ref_results.boxes is not None and len(ref_results.boxes) > 0:
+            ref_cls = ref_results.names[int(ref_results.boxes.cls[0])]
+
+        if hasattr(cand_results, 'boxes') and cand_results.boxes is not None and len(cand_results.boxes) > 0:
+            cand_cls = cand_results.names[int(cand_results.boxes.cls[0])]
+            best_conf_val = float(cand_results.boxes.conf[0]) * 100
+
+        # ตรวจสอบว่าผ่านด่าน AI ไหม
+        ai_pass = False
+        note = ""
+        if not ref_cls or not cand_cls:
+            note = "FAIL: AI มองไม่เห็นพระในภาพ"
+        elif ref_cls != cand_cls:
+            note = f"พระคนละพิมพ์ (อ้างอิง: {ref_cls} | ตรวจพบ: {cand_cls})"
+        elif best_conf_val < 20:
+            note = f"พิมพ์ตรงกัน ({cand_cls}) แต่ AI มั่นใจต่ำเกินไป ({best_conf_val:.2f}%)"
+        else:
+            ai_pass = True
+
+        # ถ้า "คนละพิมพ์" ให้จบการทำงานแล้ว FAIL ทันที (ไม่ต้องเช็คตำหนิต่อ)
+        if not ai_pass:
+            cand_annotated = cand_results.plot()
+            cand_filename = f"{safe_id}_{timestamp}_FAIL_AI.jpg"
+            ref_filename = f"{safe_id}_{timestamp}_REF.jpg"
+            
+            cand_save_path = os.path.join(OVERLAY_DIR, cand_filename)
+            ref_save_path = os.path.join(OVERLAY_DIR, ref_filename)
+            
+            cv2.imwrite(cand_save_path, cand_annotated)
+            cv2.imwrite(ref_save_path, ref_img)
+
+            save_log(final_id, 999.0, "FAIL", cand_save_path)
+
+            return {
+                "success": True, "decision": "FAIL", "score": "N/A", "note": note,
+                "overlay_url": f"/outputs/overlays/{cand_filename}",
+                "ref_contour_url": f"/outputs/overlays/{ref_filename}"
+            }
+
+
+        # ==================================================
+        # ด่านที่ 2: เช็คตำหนิพื้นผิวว่าเป็น "องค์เดียวกันเป๊ะๆ" หรือไม่ (SSIM/ORB)
+        # ==================================================
+        ref_img_rgb = cv2.cvtColor(ref_img, cv2.COLOR_BGR2RGB)
+        cand_img_rgb = cv2.cvtColor(cand_img, cv2.COLOR_BGR2RGB)
+
+        # จับขอบและจัดแนวภาพแบบระบบเดิม
         ref_rgb, _, _, ref_edge, ref_cnt = preprocess_and_contour(ref_img_rgb)
         cand_rgb, _, _, cand_edge, cand_cnt = preprocess_and_contour(cand_img_rgb)
 
-        if ref_cnt is None:
-            return {"success": False, "error_message": "ไม่พบขอบรูปทรงในภาพอ้างอิง"}
-
-        if cand_cnt is None:
-            fail_overlay = make_early_fail_overlay(cand_rgb, np.zeros_like(cand_rgb[:,:,0]), final_id, "No Candidate Contour")
-            overlay_filename = f"overlay_{safe_id}_{timestamp}_FAIL.png"
-            overlay_path = os.path.join(OVERLAY_DIR, overlay_filename)
-            cv2.imwrite(overlay_path, cv2.cvtColor(fail_overlay, cv2.COLOR_RGB2BGR))
-            save_log(final_id, 999.0, "FAIL", overlay_path)
+        if ref_cnt is None or cand_cnt is None:
+            cand_annotated = cand_results.plot()
+            cand_filename = f"{safe_id}_{timestamp}_FAIL.jpg"
+            cand_save_path = os.path.join(OVERLAY_DIR, cand_filename)
+            cv2.imwrite(cand_save_path, cand_annotated)
+            save_log(final_id, 999.0, "FAIL", cand_save_path)
             return {
-                "success": True, "amulet_id": final_id, "score": "N/A", "decision": "FAIL",
-                "note": "ไม่พบขอบรูปทรงในภาพ Candidate", "ref_contour_url": "",
-                "overlay_url": f"/outputs/overlays/{overlay_filename}"
+                "success": True, "decision": "FAIL", "score": "N/A",
+                "note": "พิมพ์ตรงกัน แต่ระบบหาขอบรูปทรงไม่เจอ",
+                "overlay_url": f"/outputs/overlays/{cand_filename}", "ref_contour_url": ""
             }
 
-        is_similar, sim_msg = check_contour_similarity(ref_cnt, cand_cnt)
-        if not is_similar:
-            fail_overlay = make_early_fail_overlay(cand_rgb, cand_edge, final_id, f"Shape Mismatch: {sim_msg}")
-            overlay_filename = f"overlay_{safe_id}_{timestamp}_FAIL.png"
-            overlay_path = os.path.join(OVERLAY_DIR, overlay_filename)
-            cv2.imwrite(overlay_path, cv2.cvtColor(fail_overlay, cv2.COLOR_RGB2BGR))
-            save_log(final_id, 999.0, "FAIL", overlay_path)
-            
-            pstar_dummy = auto_pstar_from_contour(ref_cnt, NUM_PSTAR)
-            ref_debug = render_debug_view(ref_rgb, ref_edge, pstar_dummy, final_id)
-            debug_filename = f"debug_{safe_id}_{timestamp}.png"
-            debug_path = os.path.join(DEBUG_DIR, debug_filename)
-            cv2.imwrite(debug_path, cv2.cvtColor(ref_debug, cv2.COLOR_RGB2BGR))
-            
-            return {
-                "success": True, "amulet_id": final_id, "score": "N/A", "decision": "FAIL",
-                "note": f"รูปทรงไม่ตรงกัน: {sim_msg}", "ref_contour_url": f"/outputs/debug/{debug_filename}",
-                "overlay_url": f"/outputs/overlays/{overlay_filename}"
-            }
-
+        # วาดรูปหน้าต่าง REF Contour (ระบบเก่า)
         pstar = auto_pstar_from_contour(ref_cnt, NUM_PSTAR)
         ref_debug = render_debug_view(ref_rgb, ref_edge, pstar, final_id)
         debug_filename = f"debug_{safe_id}_{timestamp}.png"
@@ -752,20 +780,9 @@ async def api_inspect(
         cv2.imwrite(debug_path, cv2.cvtColor(ref_debug, cv2.COLOR_RGB2BGR))
         ref_contour_url = f"/outputs/debug/{debug_filename}"
 
+        # ซ้อนภาพและคำนวณคะแนน
         aligned_rgb, _ = align_candidate_to_ref(ref_rgb, ref_cnt, cand_rgb, cand_cnt)
         _, _, _, aligned_edge, aligned_cnt = preprocess_and_contour(aligned_rgb)
-
-        if aligned_cnt is None or np.sum(aligned_edge) == 0:
-            fail_overlay = make_early_fail_overlay(aligned_rgb, np.zeros_like(aligned_rgb[:,:,0]), final_id, "Alignment Failed")
-            overlay_filename = f"overlay_{safe_id}_{timestamp}_FAIL.png"
-            overlay_path = os.path.join(OVERLAY_DIR, overlay_filename)
-            cv2.imwrite(overlay_path, cv2.cvtColor(fail_overlay, cv2.COLOR_RGB2BGR))
-            save_log(final_id, 999.0, "FAIL", overlay_path)
-            return {
-                "success": True, "amulet_id": final_id, "score": "N/A", "decision": "FAIL",
-                "note": "ไม่สามารถตรวจจับขอบหลังจัดแนว", "ref_contour_url": ref_contour_url,
-                "overlay_url": f"/outputs/overlays/{overlay_filename}"
-            }
 
         chamfer_score, jaccard = compute_chamfer_score(ref_edge, aligned_edge, 95)
         if not np.isfinite(chamfer_score):
@@ -784,46 +801,34 @@ async def api_inspect(
             matches = bf.match(des1, des2)
             orb_matches = len(matches)
 
+        # ตัดสินชี้ขาดจากรอยตำหนิ
         if (chamfer_score <= T_PX and ssim_val >= SSIM_THRESH and orb_matches >= ORB_MATCH_THRESH):
             decision = "PASS"
-            note = f"ผ่านทุกเกณฑ์ (Chamfer={chamfer_score:.2f}, SSIM={ssim_val:.3f}, ORB={orb_matches})"
+            final_note = f"พิมพ์: {cand_cls} | แท้และเป็นองค์เดียวกัน (SSIM={ssim_val:.2f})"
         else:
             decision = "FAIL"
-            note = f"ไม่ผ่านเกณฑ์ (Chamfer={chamfer_score:.2f}, SSIM={ssim_val:.3f}, ORB={orb_matches})"
+            final_note = f"พิมพ์: {cand_cls} | พิมพ์ตรง แต่ตำหนิ/พื้นผิวไม่ใช่องค์เดิม"
 
+        # วาดเส้นเหลืองและจุดสีม่วงแบบดั้งเดิมของพี่
         nearest_pts = nearest_edge_points(aligned_edge, pstar)
-        
-        # ✨ 1. ระบบสกัดโครงสร้างภายใน (ซุ้ม และ ฐาน 3 ชั้น) ให้เนียนขึ้น ✨
         mask_internal = np.zeros_like(aligned_gray)
         if aligned_cnt is not None:
             cv2.drawContours(mask_internal, [aligned_cnt], -1, 255, thickness=cv2.FILLED)
-            # ยุบขอบเข้ามา 10 พิกเซล เพื่อไม่ให้ขอบนอกมากวนด้านใน
             mask_internal = cv2.erode(mask_internal, np.ones((10,10), np.uint8), iterations=1)
             
-        # ลบรอยพื้นผิวมวลสารออก (Bilateral Filter) จะเก็บเฉพาะเส้นโครงสร้างลึกๆ เช่น ฐานพระ
         smooth_gray = cv2.bilateralFilter(aligned_gray, d=9, sigmaColor=75, sigmaSpace=75)
-        
-        # จับเส้นสายภายใน (ซุ้ม, องค์พระ, ฐานชั้นต่างๆ)
         inner_edges = cv2.Canny(smooth_gray, 30, 90)
         inner_edges = cv2.bitwise_and(inner_edges, inner_edges, mask=mask_internal)
-        
-        # ทำให้เส้นหน้าขึ้นนิดนึงจะได้มองเห็นชัดๆ ในหน้าเว็บ
         inner_edges = cv2.dilate(inner_edges, np.ones((2,2), np.uint8), iterations=1)
         
         vis_rgb = aligned_rgb.copy()
-        
-        # วาดเส้นชั้นโครงสร้างพระเป็น "สีเหลืองทอง" 
-        vis_rgb[inner_edges > 0] = [255, 200, 0]
-        
-        # ✨ 2. ปักหมุดโชว์จุดที่ AI ใช้ตรวจสอบความแท้ภายในองค์พระ (ORB Keypoints) ✨
+        vis_rgb[inner_edges > 0] = [255, 200, 0] 
         if 'kp2' in locals():
             for kp in kp2:
                 kx, ky = int(kp.pt[0]), int(kp.pt[1])
-                # กรองให้โชว์เฉพาะจุดที่ปักอยู่ "ข้างใน" องค์พระจริงๆ
                 if mask_internal[ky, kx] > 0:
-                    cv2.circle(vis_rgb, (kx, ky), 2, (255, 0, 255), -1) # วาดจุดสีม่วงชมพู
-        
-        # ส่งภาพไปวาดขอบนอกสีแดง + จุด P*
+                    cv2.circle(vis_rgb, (kx, ky), 2, (255, 0, 255), -1)
+
         overlay = make_overlay(
             vis_rgb, aligned_edge, pstar, nearest_pts,
             chamfer_score, decision, f"SSIM={ssim_val:.2f}, ORB={orb_matches}", final_id
@@ -832,11 +837,13 @@ async def api_inspect(
         overlay_filename = f"overlay_{safe_id}_{timestamp}_{decision}.png"
         overlay_path = os.path.join(OVERLAY_DIR, overlay_filename)
         cv2.imwrite(overlay_path, cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
+        
         save_log(final_id, chamfer_score, decision, overlay_path)
 
         return {
             "success": True, "amulet_id": final_id, "score": chamfer_score, "decision": decision,
-            "note": note, "ref_contour_url": ref_contour_url,
+            "note": final_note, 
+            "ref_contour_url": ref_contour_url,
             "overlay_url": f"/outputs/overlays/{overlay_filename}"
         }
 
@@ -844,8 +851,7 @@ async def api_inspect(
         import traceback
         traceback.print_exc()
         return {"success": False, "error_message": f"เซิร์ฟเวอร์ขัดข้อง: {str(e)}"}
-
-
+    
 @app.get("/api/history")
 def api_history(q: str = ""):
     df = load_log_df()
@@ -1057,15 +1063,16 @@ def api_daily_sales_report():
     try:
         conn = sqlite3.connect(DB_FILE) 
         
-        # ดึงข้อมูลเฉพาะรายการที่ขายแล้ว โดยใช้ seller_id
+        # ✨ เปลี่ยน LEFT JOIN users เป็น JOIN ธรรมดา เพื่อคัดกรองคนที่ถูกลบบัญชีออกไป ✨
         query = """
             SELECT 
                 u.username,
                 a.name,
                 a.price,
-                a.created_at
+                COALESCE(o.created_at, a.created_at) AS sold_date
             FROM amulets a
-            LEFT JOIN users u ON a.seller_id = u.id
+            LEFT JOIN orders o ON a.id = o.amulet_id
+            JOIN users u ON a.seller_id = u.id
             WHERE a.status = 'sold'
         """
         df = pd.read_sql_query(query, conn)
@@ -1074,8 +1081,11 @@ def api_daily_sales_report():
         if df.empty:
             return JSONResponse(status_code=404, content={"message": "ยังไม่มีประวัติการขายในระบบ"})
 
-        # ปรับแต่งคอลัมน์ให้เป็นภาษาไทย
-        df['วันที่ขาย'] = pd.to_datetime(df['created_at']).dt.date
+        # แปลงเวลา UTC เป็นเวลาไทย (+7 ชั่วโมง)
+        df['sold_date'] = pd.to_datetime(df['sold_date']) + pd.Timedelta(hours=7)
+        df['วันที่ขาย'] = df['sold_date'].dt.date
+        
+        # ปรับแต่งคอลัมน์
         df.rename(columns={'username': 'ชื่อผู้ขาย', 'name': 'ชื่อพระเครื่อง', 'price': 'ราคาที่ขายได้ (บาท)'}, inplace=True)
         df = df[['วันที่ขาย', 'ชื่อผู้ขาย', 'ชื่อพระเครื่อง', 'ราคาที่ขายได้ (บาท)']]
         df['ยอดรวมของคนนี้ (บาท)'] = df.groupby('ชื่อผู้ขาย')['ราคาที่ขายได้ (บาท)'].transform('sum')
@@ -1086,7 +1096,7 @@ def api_daily_sales_report():
         return FileResponse(report_path, media_type="text/csv", filename="สรุปยอดขายรายวัน.csv")
     except Exception as e:
         return JSONResponse(status_code=500, content={"message": f"เกิดข้อผิดพลาด: {str(e)}"})
-
+    
 # ================= API: ระบบจัดการคำสั่งซื้อ (Orders) =================
 
 @app.post("/api/orders/create")
