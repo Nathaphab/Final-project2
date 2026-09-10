@@ -2,8 +2,23 @@ import time
 import os
 import cv2
 import numpy as np
-from fastapi import UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+import uvicorn
 from ultralytics import YOLO
+from PIL import Image, ImageDraw, ImageFont
+import shutil
+from datetime import datetime
+import hashlib
+import pandas as pd
+from scipy import ndimage
+import psycopg2
+from dotenv import load_dotenv
+import cloudinary
+import cloudinary.uploader
+import cloudinary.api
 
 # โหลดโมเดล YOLO เตรียมไว้ตั้งแต่เริ่มรันเซิร์ฟเวอร์
 try:
@@ -13,42 +28,15 @@ except Exception as e:
     yolo_model = None
     print(f"❌ ไม่สามารถโหลดโมเดลได้: {e}")
 
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont
-import cv2
-
-import os
-import shutil
-from datetime import datetime
-import sqlite3
-import hashlib
-
-import cv2
-import numpy as np
-import pandas as pd
-from scipy import ndimage
-
-from fastapi import FastAPI, UploadFile, File, Form
-from fastapi.responses import FileResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-import uvicorn
-class AuthRequest(BaseModel):
-    username: str
-    password: str
-    email: str = ""
-    role: str = "buyer"
 # ================= Settings =================
 T_PX = 24.0
 NUM_PSTAR = 12
 GAUSS_SIGMA = 1.6
 MAX_IMAGE_SIDE = 1280
 MIN_COMPONENT_RATIO = 0.08
-
 AREA_RATIO_TOL = 99.0
 PERIMETER_RATIO_TOL = 99.0
-MATCH_SHAPES_THRESH = 0.40  # บล็อกรูปทรงที่ไม่เหมือนกัน (เช่น กลม กับ เหลี่ยม)
-
+MATCH_SHAPES_THRESH = 0.40
 SSIM_THRESH = 0.70          
 ORB_MATCH_THRESH = 20       
 ORB_FEATURES = 500
@@ -80,19 +68,34 @@ LOG_COLUMNS = [
 if not os.path.exists(LOG_CSV):
     pd.DataFrame(columns=LOG_COLUMNS).to_csv(LOG_CSV, index=False)
 
+# ================= Database & Cloudinary Setup =================
+load_dotenv() 
 
-# ================= Database & Auth Setup =================
-DB_FILE = os.path.join(OUT_DIR, "system.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+
+cloudinary.config(
+  cloud_name = os.environ.get("CLOUDINARY_CLOUD_NAME"),
+  api_key = os.environ.get("CLOUDINARY_API_KEY"),
+  api_secret = os.environ.get("CLOUDINARY_API_SECRET"),
+  secure = True
+)
 
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL)
+
 def init_db():
-    conn = sqlite3.connect(DB_FILE)
+    if not DATABASE_URL:
+        print("⚠️ ยังไม่ได้ตั้งค่า DATABASE_URL ในไฟล์ .env ระบบจะข้ามการสร้างตารางไปก่อน")
+        return
+        
+    conn = get_db_connection()
     c = conn.cursor()
-    # ตารางเก็บประวัติการตรวจ
+    
     c.execute('''CREATE TABLE IF NOT EXISTS history
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 (id SERIAL PRIMARY KEY,
                   amulet_id TEXT,
                   timestamp TEXT,
                   decision TEXT,
@@ -103,9 +106,8 @@ def init_db():
                   overlay_path TEXT,
                   ref_contour_path TEXT)''')
                   
-    # ตารางเก็บรายการตลาด
     c.execute('''CREATE TABLE IF NOT EXISTS amulets 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 (id SERIAL PRIMARY KEY,
                   seller_id INTEGER,
                   name TEXT,
                   temple TEXT,
@@ -113,11 +115,11 @@ def init_db():
                   price REAL,
                   image_path TEXT,
                   description TEXT,
-                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP)''')
+                  status TEXT DEFAULT 'available',
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
 
-    # ตารางผู้ใช้งาน
     c.execute('''CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     username TEXT NOT NULL,
                     email TEXT UNIQUE NOT NULL,
                     password TEXT NOT NULL,
@@ -125,9 +127,8 @@ def init_db():
                     status TEXT DEFAULT 'active'
                  )''')
 
-    # 🌟 เพิ่มตารางคำสั่งซื้อใหม่ตรงนี้ 🌟
     c.execute('''CREATE TABLE IF NOT EXISTS orders (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     amulet_id INTEGER,
                     buyer_id INTEGER,
                     buyer_name TEXT,
@@ -135,33 +136,30 @@ def init_db():
                     buyer_address TEXT,
                     total_amount REAL,
                     status TEXT DEFAULT 'pending',
-                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                  )''')
     
-    # สร้างบัญชี Admin อัตโนมัติ (เปลี่ยนไปใช้อีเมล)
     c.execute("SELECT * FROM users WHERE email = 'admin@system.com'")
     if not c.fetchone():
         hashed_pw = hash_password('admin123')
-        c.execute("INSERT INTO users (username, email, password, role) VALUES ('admin', 'admin@system.com', ?, 'admin')", (hashed_pw,))
+        c.execute("INSERT INTO users (username, email, password, role) VALUES ('admin', 'admin@system.com', %s, 'admin')", (hashed_pw,))
 
     conn.commit()
     conn.close()
 
-# เรียกใช้งานตอนเริ่มรันเซิร์ฟเวอร์
 init_db()
 
-# ================= โมเดลรับข้อมูล (Pydantic Models) =================
+# ================= Pydantic Models =================
 class UserRegister(BaseModel):
     username: str
     email: str
     password: str
-    role: str  # รับค่าเป็น 'buyer' หรือ 'seller'
+    role: str
 
 class UserLogin(BaseModel):
-    email: str      # ✨ เปลี่ยนจาก username เป็น email
+    email: str
     password: str
 
-# 🌟 เพิ่มโมเดลรับข้อมูลที่อยู่จัดส่งตรงนี้ 🌟
 class OrderCreate(BaseModel):
     amulet_id: int
     buyer_id: int
@@ -179,7 +177,6 @@ def ensure_rgb(img: np.ndarray) -> np.ndarray:
     if img.shape[2] == 4:
         return cv2.cvtColor(img, cv2.COLOR_RGBA2RGB)
     return img.copy()
-
 
 def to_gray(img: np.ndarray) -> np.ndarray:
     rgb = ensure_rgb(img)
@@ -215,87 +212,66 @@ def resize_keep_aspect(img: np.ndarray, max_side: int = MAX_IMAGE_SIDE) -> np.nd
     new_h = max(1, int(round(h * scale)))
     return cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
 
-
 def get_best_object_contour(mask: np.ndarray):
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
         return None
-
     h, w = mask.shape
     img_area = h * w
     center_x, center_y = w / 2, h / 2
-
     best_cnt = None
     best_score = -1
-
     for cnt in contours:
         area = cv2.contourArea(cnt)
         if area < (img_area * 0.01) or area > (img_area * 0.98):
             continue
-
         x, y, w_box, h_box = cv2.boundingRect(cnt)
         if w_box >= w - 2 and h_box >= h - 2:
             continue
-
         M = cv2.moments(cnt)
         if M['m00'] != 0:
             cx, cy = int(M['m10'] / M['m00']), int(M['m01'] / M['m00'])
         else:
             cx, cy = x + w_box / 2, y + h_box / 2
-
         dist_to_center = np.sqrt((cx - center_x) ** 2 + (cy - center_y) ** 2)
         max_dist = np.sqrt(center_x**2 + center_y**2)
-
         area_score = area / img_area
         center_score = 1.0 - (dist_to_center / max_dist)
-        
         score = (area_score * 0.6) + (center_score * 0.4)
-
         if score > best_score:
             best_score = score
             best_cnt = cnt
-
     if best_cnt is None and contours:
         valid_contours = [c for c in contours if cv2.contourArea(c) < img_area * 0.99]
         if valid_contours:
             best_cnt = max(valid_contours, key=cv2.contourArea)
-
     return best_cnt
-
 
 def preprocess_and_contour(img: np.ndarray):
     rgb = resize_keep_aspect(ensure_rgb(img))
     gray = to_gray(rgb)
     h, w = gray.shape
-
     blur = cv2.GaussianBlur(gray, (5, 5), 0)
     cv2.rectangle(blur, (0, 0), (w-1, h-1), 0, thickness=2)
-
     best_cnt = None
-
-    # --- วิธีที่ 1: Otsu Threshold ---
     _, th_otsu = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     border_pixels = np.concatenate([th_otsu[0, :], th_otsu[-1, :], th_otsu[:, 0], th_otsu[:, -1]])
     if np.mean(border_pixels) > 127: 
         th_otsu = cv2.bitwise_not(th_otsu)
-
     filled_otsu = ndimage.binary_fill_holes(th_otsu > 0).astype(np.uint8) * 255
     kernel_clean = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     mask_otsu = cv2.morphologyEx(filled_otsu, cv2.MORPH_OPEN, kernel_clean, iterations=1)
     best_cnt = get_best_object_contour(mask_otsu)
-
-    # --- วิธีที่ 2: Adaptive Threshold ---
+    
     if best_cnt is None or cv2.contourArea(best_cnt) < (h*w*0.05):
         th_adapt = cv2.adaptiveThreshold(blur, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 31, 5)
         filled_adapt = ndimage.binary_fill_holes(th_adapt > 0).astype(np.uint8) * 255
         mask_adapt = cv2.morphologyEx(filled_adapt, cv2.MORPH_OPEN, kernel_clean, iterations=1)
         cnt_adapt = get_best_object_contour(mask_adapt)
-        
         if cnt_adapt is not None:
             if best_cnt is None or cv2.contourArea(cnt_adapt) > cv2.contourArea(best_cnt):
                 best_cnt = cnt_adapt
-
-    # --- วิธีที่ 3: Canny Edge ---
+                
     if best_cnt is None or cv2.contourArea(best_cnt) < (h*w*0.05):
         edges = cv2.Canny(blur, 20, 80)
         kernel_close = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
@@ -303,28 +279,22 @@ def preprocess_and_contour(img: np.ndarray):
         filled_edges = ndimage.binary_fill_holes(closed_edges > 0).astype(np.uint8) * 255
         mask_edges = cv2.morphologyEx(filled_edges, cv2.MORPH_OPEN, kernel_clean, iterations=1)
         cnt_edges = get_best_object_contour(mask_edges)
-
         if cnt_edges is not None:
             if best_cnt is None or cv2.contourArea(cnt_edges) > cv2.contourArea(best_cnt):
                 best_cnt = cnt_edges
-
+                
     final_mask = np.zeros_like(gray)
     final_edge = np.zeros_like(gray)
-
     if best_cnt is not None:
         epsilon = 0.001 * cv2.arcLength(best_cnt, True)
         best_cnt = cv2.approxPolyDP(best_cnt, epsilon, True)
-        
         cv2.drawContours(final_mask, [best_cnt], -1, 255, thickness=cv2.FILLED)
         cv2.drawContours(final_edge, [best_cnt], -1, 255, thickness=2)
-
     return rgb, gray, final_mask, final_edge, best_cnt
-
 
 def contour_to_points(cnt: np.ndarray) -> np.ndarray:
     pts = cnt.reshape(-1, 2)
     return pts.astype(np.int32)
-
 
 def amulet_id_or_auto(amulet_id: str) -> str:
     raw = (amulet_id or "").strip()
@@ -332,10 +302,8 @@ def amulet_id_or_auto(amulet_id: str) -> str:
         return raw
     return "AUTO-" + datetime.now().strftime("%Y%m%d-%H%M%S")
 
-
 def sanitize_id(text: str) -> str:
     return "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in text)
-
 
 def load_log_df() -> pd.DataFrame:
     if not os.path.exists(LOG_CSV):
@@ -346,13 +314,13 @@ def load_log_df() -> pd.DataFrame:
         df[col] = ""
     return df.loc[:, LOG_COLUMNS]
 
-
 def to_web_overlay_path(overlay_path: str) -> str:
     if not overlay_path:
         return ""
+    if str(overlay_path).startswith("http"):
+        return overlay_path # ถ้าเป็นลิงก์ Cloudinary ให้ใช้ได้เลย
     filename = os.path.basename(overlay_path)
     return f"/outputs/overlays/{filename}"
-
 
 def auto_pstar_from_contour(cnt: np.ndarray, num_p: int = NUM_PSTAR) -> np.ndarray:
     pts = contour_to_points(cnt)
@@ -376,28 +344,14 @@ def auto_pstar_from_contour(cnt: np.ndarray, num_p: int = NUM_PSTAR) -> np.ndarr
         indices.append(idx)
     return pts[indices]
 
-
-def check_contour_similarity(ref_cnt, cand_cnt):
-    if ref_cnt is None or cand_cnt is None:
-        return False, "ไม่พบ contour ของวัตถุ"
-
-    match_val = cv2.matchShapes(ref_cnt, cand_cnt, cv2.CONTOURS_MATCH_I1, 0.0)
-    if match_val > MATCH_SHAPES_THRESH:
-        return False, f"รูปร่างไม่เหมือนกัน (matchShapes={match_val:.3f})"
-
-    return True, f"รูปร่างคล้ายกัน (matchShapes={match_val:.3f})"
-
-
 def align_candidate_to_ref(ref_rgb: np.ndarray, ref_cnt: np.ndarray,
                            cand_rgb: np.ndarray, cand_cnt: np.ndarray):
     M_ref = cv2.moments(ref_cnt)
     M_cand = cv2.moments(cand_cnt)
-
     cx_ref = M_ref['m10'] / M_ref['m00'] if M_ref['m00'] != 0 else 0
     cy_ref = M_ref['m01'] / M_ref['m00'] if M_ref['m00'] != 0 else 0
     cx_cand = M_cand['m10'] / M_cand['m00'] if M_cand['m00'] != 0 else 0
     cy_cand = M_cand['m01'] / M_cand['m00'] if M_cand['m00'] != 0 else 0
-
     area_ref = cv2.contourArea(ref_cnt)
     area_cand = cv2.contourArea(cand_cnt)
     if area_cand == 0:
@@ -405,10 +359,7 @@ def align_candidate_to_ref(ref_rgb: np.ndarray, ref_cnt: np.ndarray,
     else:
         scale = np.sqrt(area_ref / area_cand)
         scale = np.clip(scale, 0.3, 3.0)
-
-    # ✨ ปิดระบบคำนวณการหมุน บังคับให้องศาเป็น 0 เสมอ ภาพจะได้ไม่เอียง ✨
     delta_angle = 0.0 
-
     cos_a = np.cos(delta_angle)
     sin_a = np.sin(delta_angle)
     tx = cx_ref - scale * (cx_cand * cos_a - cy_cand * sin_a)
@@ -417,54 +368,40 @@ def align_candidate_to_ref(ref_rgb: np.ndarray, ref_cnt: np.ndarray,
         [scale * cos_a, -scale * sin_a, tx],
         [scale * sin_a,  scale * cos_a, ty]
     ])
-
     h, w = ref_rgb.shape[:2]
     warped = cv2.warpAffine(cand_rgb, M, (w, h), flags=cv2.INTER_LINEAR,
                             borderMode=cv2.BORDER_CONSTANT, borderValue=(0,0,0))
     return warped, M
 
-
-def compute_chamfer_score(ref_edge: np.ndarray, cand_edge: np.ndarray,
-                          percentile: int = 95) -> tuple:
+def compute_chamfer_score(ref_edge: np.ndarray, cand_edge: np.ndarray, percentile: int = 95) -> tuple:
     if ref_edge is None or cand_edge is None:
         return float('inf'), 0.0
-
     if np.sum(ref_edge) == 0 or np.sum(cand_edge) == 0:
         return float('inf'), 0.0
-
     ref_bin = (ref_edge > 0).astype(np.uint8)
     dist_ref = cv2.distanceTransform(1 - ref_bin, cv2.DIST_L2, 3)
-
     cand_pts = np.column_stack(np.where(cand_edge > 0))
     if len(cand_pts) == 0:
         return float('inf'), 0.0
-
     distances = []
     for y, x in cand_pts:
         x = int(np.clip(x, 0, dist_ref.shape[1] - 1))
         y = int(np.clip(y, 0, dist_ref.shape[0] - 1))
         d = dist_ref[y, x]
         distances.append(d)
-
     if not distances:
         return float('inf'), 0.0
-
     score = np.percentile(distances, percentile)
-
     intersection = np.logical_and(ref_edge > 0, cand_edge > 0).sum()
     union = np.logical_or(ref_edge > 0, cand_edge > 0).sum()
     jaccard = intersection / union if union > 0 else 0.0
-
     return float(score), float(jaccard)
-
 
 def nearest_edge_points(edge: np.ndarray, pstar: np.ndarray) -> np.ndarray:
     if len(pstar) == 0:
         return np.empty((0, 2), dtype=np.int32)
-
     edge_bin = (edge > 0).astype(np.uint8)
     dist_edge = cv2.distanceTransform(1 - edge_bin, cv2.DIST_L2, 3)
-
     nearest = []
     h, w = dist_edge.shape
     for x, y in pstar:
@@ -489,51 +426,38 @@ def nearest_edge_points(edge: np.ndarray, pstar: np.ndarray) -> np.ndarray:
         nearest.append(best_pt)
     return np.array(nearest, dtype=np.int32)
 
-
 def make_overlay(base_img: np.ndarray, edge: np.ndarray,
                  pstar: np.ndarray, nearest_pts: np.ndarray,
                  score: float, decision: str, status_line: str,
                  amulet_id: str) -> np.ndarray:
     overlay = ensure_rgb(base_img).copy()
     overlay[edge > 0] = np.array([255, 0, 0], dtype=np.uint8)
-
     for (x, y), (ex, ey) in zip(pstar, nearest_pts):
         cv2.circle(overlay, (int(x), int(y)), 6, (0, 255, 0), 2)
         cv2.drawMarker(overlay, (int(ex), int(ey)), (0, 255, 255),
                        markerType=cv2.MARKER_TILTED_CROSS, markerSize=12, thickness=2)
         cv2.line(overlay, (int(x), int(y)), (int(ex), int(ey)), (255, 255, 0), 1)
-
-    # --- ฟังก์ชันที่ 1 (ครึ่งบนที่พี่ส่งมา) ---
     cv2.putText(overlay, f"ID: {amulet_id}", (20, 32),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.80, (255, 255, 255), 2, cv2.LINE_AA)
     cv2.putText(overlay, f"Decision: {decision}", (20, 64),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.80, (0, 128, 255), 2, cv2.LINE_AA)
     cv2.putText(overlay, f"Score: {score:.3f} px   Threshold: {T_PX:.3f} px", (20, 96),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.68, (0, 128, 255), 2, cv2.LINE_AA)
-    
-    # 📍 แก้ไขจุดที่ 1: เปลี่ยนมาใช้ฟังก์ชันภาษาไทยสำหรับ status_line
-    font_path = "THSarabunNew.ttf" # เช็คชื่อฟอนต์ให้ตรงกับไฟล์ที่โหลดมาด้วยนะครับ
+    font_path = "THSarabunNew.ttf" 
     overlay = draw_thai_text_on_cv_image(overlay, status_line, (20, 128), font_path, 30, (255, 255, 255))
-    
     return overlay
-
 
 def make_early_fail_overlay(base_img: np.ndarray, edge: np.ndarray, amulet_id: str, reason: str) -> np.ndarray:
     overlay = ensure_rgb(base_img).copy()
     if edge is not None and np.sum(edge) > 0:
         overlay[edge > 0] = np.array([0, 0, 255], dtype=np.uint8)
-        
     cv2.putText(overlay, f"ID: {amulet_id}", (20, 32),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.80, (255, 255, 255), 2, cv2.LINE_AA)
     cv2.putText(overlay, f"Decision: FAIL", (20, 64),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.80, (0, 0, 255), 2, cv2.LINE_AA)
-    
-    # 📍 แก้ไขจุดที่ 2: เปลี่ยนมาใช้ฟังก์ชันภาษาไทยสำหรับ Error reason
     font_path = "THSarabunNew.ttf"
     overlay = draw_thai_text_on_cv_image(overlay, f"Error: {reason}", (20, 96), font_path, 30, (0, 128, 255))
-    
     return overlay
-
 
 def save_log(amulet_id: str, score: float, decision: str, overlay_path: str):
     df = load_log_df()
@@ -549,9 +473,7 @@ def save_log(amulet_id: str, score: float, decision: str, overlay_path: str):
     }
     df.to_csv(LOG_CSV, index=False)
 
-
-def render_debug_view(ref_rgb: np.ndarray, ref_edge: np.ndarray,
-                      pstar: np.ndarray, amulet_id: str) -> np.ndarray:
+def render_debug_view(ref_rgb: np.ndarray, ref_edge: np.ndarray, pstar: np.ndarray, amulet_id: str) -> np.ndarray:
     vis = ensure_rgb(ref_rgb).copy()
     vis[ref_edge > 0] = np.array([255, 0, 0], dtype=np.uint8)
     for x, y in pstar:
@@ -562,118 +484,23 @@ def render_debug_view(ref_rgb: np.ndarray, ref_edge: np.ndarray,
                 cv2.FONT_HERSHEY_SIMPLEX, 0.72, (255, 255, 255), 2, cv2.LINE_AA)
     return vis
 
-
 # ================= FastAPI Application =================
 app = FastAPI(title="Smart Amulet Verification API")
 
 def draw_thai_text_on_cv_image(image_cv, text, position, font_path, font_size, color_bgr):
     image_rgb = cv2.cvtColor(image_cv, cv2.COLOR_BGR2RGB)
     image_pil = Image.fromarray(image_rgb)
-    
     draw = ImageDraw.Draw(image_pil)
     try:
         font = ImageFont.truetype(font_path, font_size)
     except IOError:
         font = ImageFont.load_default()
-        
     color_rgb = (color_bgr[2], color_bgr[1], color_bgr[0])
-    
-    # ✨ จุดที่เปลี่ยน: เพิ่ม stroke_width=2 และ stroke_fill=(0, 0, 0) เพื่อสร้างขอบสีดำ
     draw.text(position, text, font=font, fill=color_rgb, stroke_width=2, stroke_fill=(0, 0, 0))
-    
     image_final = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
     return image_final
 
-@app.post("/api/register")
-def api_register(user: UserRegister):
-    import re  # นำเข้าตัวตรวจจับรูปแบบตัวอักษร
-    
-    if user.role not in ['buyer', 'seller']:
-        return {"success": False, "message": "Role ไม่ถูกต้อง"}
-
-    # ✨ เพิ่มระบบดักจับรูปแบบอีเมลตรงนี้ (ห้ามพิมพ์มั่ว / ห้ามพิมพ์ไทย)
-    email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
-    if not re.match(email_regex, user.email):
-        return {"success": False, "message": "รูปแบบอีเมลไม่ถูกต้อง กรุณากรอกอีเมลให้ถูกหลัก (เช่น name@gmail.com)"}
-
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    try:
-        # เช็คแค่อีเมลซ้ำอย่างเดียว (ชื่อผู้ใช้ปล่อยผ่านได้เลย)
-        c.execute("SELECT id FROM users WHERE email=?", (user.email,))
-        if c.fetchone():
-            return {"success": False, "message": "อีเมลนี้ถูกใช้สมัครไปแล้ว กรุณาใช้อีเมลอื่น"}
-        
-        hashed_pw = hash_password(user.password)
-        # สังเกตว่าใช้ column 'password' ตรงๆ ให้ตรงกับฐานข้อมูล
-        c.execute("INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)",
-                  (user.username, user.email, hashed_pw, user.role))
-        conn.commit()
-        return {"success": True, "message": "สมัครสมาชิกสำเร็จ! สามารถเข้าสู่ระบบได้เลย"}
-    except Exception as e:
-        return {"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}
-    finally:
-        conn.close()
-
-@app.post("/api/login")
-def api_login(user: UserLogin):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    
-    hashed_pw = hash_password(user.password)
-    # ✨ ค้นหาบัญชีผู้ใช้จาก Email แทน Username
-    c.execute("SELECT id, username, role, status FROM users WHERE email=? AND password=?", 
-              (user.email, hashed_pw))
-    row = c.fetchone()
-    conn.close()
-    
-    if row:
-        if row[3] == 'suspended':
-            return {"success": False, "message": "บัญชีของคุณถูกระงับ"}
-        return {
-            "success": True, 
-            "message": "เข้าสู่ระบบสำเร็จ!", 
-            "user_id": row[0], 
-            "username": row[1], 
-            "role": row[2]
-        }
-    else:
-        return {"success": False, "message": "อีเมลหรือรหัสผ่านไม่ถูกต้อง"}
-
-@app.get("/api/admin/users")
-def api_get_users():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT id, username, email, role, status FROM users")
-    users = [{"id": row[0], "username": row[1], "email": row[2], "role": row[3], "status": row[4]} for row in c.fetchall()]
-    conn.close()
-    return {"success": True, "users": users}
-
-@app.post("/api/admin/update-user-status")
-def api_update_user_status(user_id: int, status: str):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("UPDATE users SET status=? WHERE id=?", (status, user_id))
-    conn.commit()
-    conn.close()
-    return {"success": True, "message": f"อัปเดตสถานะผู้ใช้ {user_id} เป็น {status} เรียบร้อย"}
-
-@app.get("/api/admin/stats")
-def api_get_stats():
-    df = load_log_df()
-    total_inspections = len(df)
-    pass_count = len(df[df["decision"] == "PASS"])
-    fail_count = len(df[df["decision"] == "FAIL"])
-    
-    return {
-        "success": True,
-        "stats": {
-            "total": total_inspections,
-            "pass": pass_count,
-            "fail": fail_count
-        }
-    }
-
+# ================= AI Inspect API =================
 @app.post("/api/inspect")
 async def inspect_amulet(
     amulet_id: str = Form(""), 
@@ -684,13 +511,10 @@ async def inspect_amulet(
         return {"success": False, "error_message": "ระบบ AI ยังไม่พร้อมทำงาน"}
 
     try:
-        # --- 1. อ่านรูปภาพ ---
         ref_bytes = await ref_file.read()
         cand_bytes = await cand_file.read()
-
         ref_nparr = np.frombuffer(ref_bytes, np.uint8)
         cand_nparr = np.frombuffer(cand_bytes, np.uint8)
-
         ref_img = cv2.imdecode(ref_nparr, cv2.IMREAD_COLOR)
         cand_img = cv2.imdecode(cand_nparr, cv2.IMREAD_COLOR)
 
@@ -701,9 +525,6 @@ async def inspect_amulet(
         safe_id = sanitize_id(final_id)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        # ==================================================
-        # ด่านที่ 1: ตรวจด้วย AI (YOLO) กรองพิมพ์พระให้ตรงกัน
-        # ==================================================
         ref_results = yolo_model(ref_img)[0]
         cand_results = yolo_model(cand_img)[0]
 
@@ -712,12 +533,10 @@ async def inspect_amulet(
 
         if hasattr(ref_results, 'boxes') and ref_results.boxes is not None and len(ref_results.boxes) > 0:
             ref_cls = ref_results.names[int(ref_results.boxes.cls[0])]
-
         if hasattr(cand_results, 'boxes') and cand_results.boxes is not None and len(cand_results.boxes) > 0:
             cand_cls = cand_results.names[int(cand_results.boxes.cls[0])]
             best_conf_val = float(cand_results.boxes.conf[0]) * 100
 
-        # ตรวจสอบว่าผ่านด่าน AI ไหม
         ai_pass = False
         note = ""
         if not ref_cls or not cand_cls:
@@ -729,58 +548,41 @@ async def inspect_amulet(
         else:
             ai_pass = True
 
-        # ถ้า "คนละพิมพ์" ให้จบการทำงานแล้ว FAIL ทันที (ไม่ต้องเช็คตำหนิต่อ)
         if not ai_pass:
             cand_annotated = cand_results.plot()
-            cand_filename = f"{safe_id}_{timestamp}_FAIL_AI.jpg"
-            ref_filename = f"{safe_id}_{timestamp}_REF.jpg"
-            
-            cand_save_path = os.path.join(OVERLAY_DIR, cand_filename)
-            ref_save_path = os.path.join(OVERLAY_DIR, ref_filename)
-            
-            cv2.imwrite(cand_save_path, cand_annotated)
-            cv2.imwrite(ref_save_path, ref_img)
-
-            save_log(final_id, 999.0, "FAIL", cand_save_path)
+            cand_upload = cloudinary.uploader.upload(cv2.imencode('.jpg', cand_annotated)[1].tobytes())
+            ref_upload = cloudinary.uploader.upload(ref_bytes)
+            cand_url = cand_upload.get("secure_url")
+            ref_url = ref_upload.get("secure_url")
+            save_log(final_id, 999.0, "FAIL", cand_url)
 
             return {
                 "success": True, "decision": "FAIL", "score": "N/A", "note": note,
-                "overlay_url": f"/outputs/overlays/{cand_filename}",
-                "ref_contour_url": f"/outputs/overlays/{ref_filename}"
+                "overlay_url": cand_url,
+                "ref_contour_url": ref_url
             }
 
-
-        # ==================================================
-        # ด่านที่ 2: เช็คตำหนิพื้นผิวว่าเป็น "องค์เดียวกันเป๊ะๆ" หรือไม่ (SSIM/ORB)
-        # ==================================================
         ref_img_rgb = cv2.cvtColor(ref_img, cv2.COLOR_BGR2RGB)
         cand_img_rgb = cv2.cvtColor(cand_img, cv2.COLOR_BGR2RGB)
-
-        # จับขอบและจัดแนวภาพแบบระบบเดิม
         ref_rgb, _, _, ref_edge, ref_cnt = preprocess_and_contour(ref_img_rgb)
         cand_rgb, _, _, cand_edge, cand_cnt = preprocess_and_contour(cand_img_rgb)
 
         if ref_cnt is None or cand_cnt is None:
             cand_annotated = cand_results.plot()
-            cand_filename = f"{safe_id}_{timestamp}_FAIL.jpg"
-            cand_save_path = os.path.join(OVERLAY_DIR, cand_filename)
-            cv2.imwrite(cand_save_path, cand_annotated)
-            save_log(final_id, 999.0, "FAIL", cand_save_path)
+            cand_upload = cloudinary.uploader.upload(cv2.imencode('.jpg', cand_annotated)[1].tobytes())
+            cand_url = cand_upload.get("secure_url")
+            save_log(final_id, 999.0, "FAIL", cand_url)
             return {
                 "success": True, "decision": "FAIL", "score": "N/A",
                 "note": "พิมพ์ตรงกัน แต่ระบบหาขอบรูปทรงไม่เจอ",
-                "overlay_url": f"/outputs/overlays/{cand_filename}", "ref_contour_url": ""
+                "overlay_url": cand_url, "ref_contour_url": ""
             }
 
-        # วาดรูปหน้าต่าง REF Contour (ระบบเก่า)
         pstar = auto_pstar_from_contour(ref_cnt, NUM_PSTAR)
         ref_debug = render_debug_view(ref_rgb, ref_edge, pstar, final_id)
-        debug_filename = f"debug_{safe_id}_{timestamp}.png"
-        debug_path = os.path.join(DEBUG_DIR, debug_filename)
-        cv2.imwrite(debug_path, cv2.cvtColor(ref_debug, cv2.COLOR_RGB2BGR))
-        ref_contour_url = f"/outputs/debug/{debug_filename}"
+        ref_debug_upload = cloudinary.uploader.upload(cv2.imencode('.png', cv2.cvtColor(ref_debug, cv2.COLOR_RGB2BGR))[1].tobytes())
+        ref_contour_url = ref_debug_upload.get("secure_url")
 
-        # ซ้อนภาพและคำนวณคะแนน
         aligned_rgb, _ = align_candidate_to_ref(ref_rgb, ref_cnt, cand_rgb, cand_cnt)
         _, _, _, aligned_edge, aligned_cnt = preprocess_and_contour(aligned_rgb)
 
@@ -801,7 +603,6 @@ async def inspect_amulet(
             matches = bf.match(des1, des2)
             orb_matches = len(matches)
 
-        # ตัดสินชี้ขาดจากรอยตำหนิ
         if (chamfer_score <= T_PX and ssim_val >= SSIM_THRESH and orb_matches >= ORB_MATCH_THRESH):
             decision = "PASS"
             final_note = f"พิมพ์: {cand_cls} | แท้และเป็นองค์เดียวกัน (SSIM={ssim_val:.2f})"
@@ -809,7 +610,6 @@ async def inspect_amulet(
             decision = "FAIL"
             final_note = f"พิมพ์: {cand_cls} | พิมพ์ตรง แต่ตำหนิ/พื้นผิวไม่ใช่องค์เดิม"
 
-        # วาดเส้นเหลืองและจุดสีม่วงแบบดั้งเดิมของพี่
         nearest_pts = nearest_edge_points(aligned_edge, pstar)
         mask_internal = np.zeros_like(aligned_gray)
         if aligned_cnt is not None:
@@ -834,24 +634,24 @@ async def inspect_amulet(
             chamfer_score, decision, f"SSIM={ssim_val:.2f}, ORB={orb_matches}", final_id
         )
 
-        overlay_filename = f"overlay_{safe_id}_{timestamp}_{decision}.png"
-        overlay_path = os.path.join(OVERLAY_DIR, overlay_filename)
-        cv2.imwrite(overlay_path, cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
+        overlay_upload = cloudinary.uploader.upload(cv2.imencode('.png', cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))[1].tobytes())
+        overlay_url = overlay_upload.get("secure_url")
         
-        save_log(final_id, chamfer_score, decision, overlay_path)
+        save_log(final_id, chamfer_score, decision, overlay_url)
 
         return {
             "success": True, "amulet_id": final_id, "score": chamfer_score, "decision": decision,
             "note": final_note, 
             "ref_contour_url": ref_contour_url,
-            "overlay_url": f"/outputs/overlays/{overlay_filename}"
+            "overlay_url": overlay_url
         }
 
     except Exception as e:
         import traceback
         traceback.print_exc()
         return {"success": False, "error_message": f"เซิร์ฟเวอร์ขัดข้อง: {str(e)}"}
-    
+
+# ================= Other APIs =================
 @app.get("/api/history")
 def api_history(q: str = ""):
     df = load_log_df()
@@ -867,7 +667,7 @@ def api_history(q: str = ""):
     gallery_df = df_sorted.head(24)
     for _, row in gallery_df.iterrows():
         op = str(row.get("overlay_path", "") or "")
-        if op and os.path.exists(op):
+        if op: 
             gallery.append({
                 "amulet_id": str(row.get("amulet_id", "")),
                 "decision": str(row.get("decision", "")),
@@ -897,7 +697,6 @@ def api_history(q: str = ""):
 
     return {"count": count, "gallery": gallery, "table": table}
 
-
 @app.post("/api/clear-history")
 def api_clear_history():
     try:
@@ -906,12 +705,90 @@ def api_clear_history():
     except Exception as e:
         return {"success": False, "message": f"ไม่สามารถล้างได้: {str(e)}"}
 
-
 @app.get("/api/download-csv")
 def api_download_csv():
     if os.path.exists(LOG_CSV):
         return FileResponse(LOG_CSV, media_type="text/csv", filename="inspection_log.csv")
     return JSONResponse(status_code=404, content={"message": "ยังไม่มีไฟล์ประวัติ"})
+
+@app.post("/api/register")
+def api_register(user: UserRegister):
+    import re  
+    if user.role not in ['buyer', 'seller']:
+        return {"success": False, "message": "Role ไม่ถูกต้อง"}
+    email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+    if not re.match(email_regex, user.email):
+        return {"success": False, "message": "รูปแบบอีเมลไม่ถูกต้อง กรุณากรอกอีเมลให้ถูกหลัก (เช่น name@gmail.com)"}
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT id FROM users WHERE email=%s", (user.email,))
+        if c.fetchone():
+            return {"success": False, "message": "อีเมลนี้ถูกใช้สมัครไปแล้ว กรุณาใช้อีเมลอื่น"}
+        hashed_pw = hash_password(user.password)
+        c.execute("INSERT INTO users (username, email, password, role) VALUES (%s, %s, %s, %s)",
+                  (user.username, user.email, hashed_pw, user.role))
+        conn.commit()
+        return {"success": True, "message": "สมัครสมาชิกสำเร็จ! สามารถเข้าสู่ระบบได้เลย"}
+    except Exception as e:
+        return {"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}
+    finally:
+        conn.close()
+
+@app.post("/api/login")
+def api_login(user: UserLogin):
+    conn = get_db_connection()
+    c = conn.cursor()
+    hashed_pw = hash_password(user.password)
+    c.execute("SELECT id, username, role, status FROM users WHERE email=%s AND password=%s", 
+              (user.email, hashed_pw))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        if row[3] == 'suspended':
+            return {"success": False, "message": "บัญชีของคุณถูกระงับ"}
+        return {
+            "success": True, 
+            "message": "เข้าสู่ระบบสำเร็จ!", 
+            "user_id": row[0], 
+            "username": row[1], 
+            "role": row[2]
+        }
+    else:
+        return {"success": False, "message": "อีเมลหรือรหัสผ่านไม่ถูกต้อง"}
+
+@app.get("/api/admin/users")
+def api_get_users():
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, username, email, role, status FROM users")
+    users = [{"id": row[0], "username": row[1], "email": row[2], "role": row[3], "status": row[4]} for row in c.fetchall()]
+    conn.close()
+    return {"success": True, "users": users}
+
+@app.post("/api/admin/update-user-status")
+def api_update_user_status(user_id: int, status: str):
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("UPDATE users SET status=%s WHERE id=%s", (status, user_id))
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": f"อัปเดตสถานะผู้ใช้ {user_id} เป็น {status} เรียบร้อย"}
+
+@app.get("/api/admin/stats")
+def api_get_stats():
+    df = load_log_df()
+    total_inspections = len(df)
+    pass_count = len(df[df["decision"] == "PASS"])
+    fail_count = len(df[df["decision"] == "FAIL"])
+    return {
+        "success": True,
+        "stats": {
+            "total": total_inspections,
+            "pass": pass_count,
+            "fail": fail_count
+        }
+    }
 
 @app.post("/api/amulets/add")
 async def api_add_amulet(
@@ -924,37 +801,32 @@ async def api_add_amulet(
     image: UploadFile = File(...)
 ):
     try:
-        ext = image.filename.split('.')[-1]
-        filename = f"market_{datetime.now().strftime('%Y%m%d%H%M%S')}.{ext}"
-        filepath = os.path.join(MARKET_DIR, filename)
-        with open(filepath, "wb") as buffer:
-            shutil.copyfileobj(image.file, buffer)
-
-        conn = sqlite3.connect(DB_FILE)
+        upload_result = cloudinary.uploader.upload(image.file)
+        image_url = upload_result.get("secure_url")
+        conn = get_db_connection()
         c = conn.cursor()
         c.execute('''INSERT INTO amulets (seller_id, name, temple, year, price, image_path, description)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)''', 
-                  (seller_id, name, temple, year, price, f"/market_images/{filename}", description))
+                     VALUES (%s, %s, %s, %s, %s, %s, %s)''', 
+                  (seller_id, name, temple, year, price, image_url, description))
         conn.commit()
         conn.close()
         return {"success": True, "message": "ลงประกาศขายพระเครื่องสำเร็จ!"}
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}
 
 @app.get("/api/amulets")
 def api_get_amulets():
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         c = conn.cursor()
-        
-        # ✨ ทริคพิเศษ: แอบเพิ่มคอลัมน์ status ในฐานข้อมูลโดยไม่ต้องลบไฟล์ทิ้ง
         try:
-            c.execute("ALTER TABLE amulets ADD COLUMN status TEXT DEFAULT 'available'")
+            c.execute("ALTER TABLE amulets ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'available'")
             conn.commit()
         except:
-            pass # ถ้ามีคอลัมน์นี้อยู่แล้ว ระบบจะข้ามไปทำงานต่อทันที
+            conn.rollback()
             
-        # ดึงข้อมูลมาทั้งหมด รวมถึง a.status (r[9])
         c.execute('''
             SELECT a.id, a.name, a.temple, a.year, a.price, a.image_path, a.description, u.username, a.seller_id, a.status 
             FROM amulets a
@@ -980,48 +852,40 @@ def api_get_amulets():
 @app.post("/api/amulets/{amulet_id}/sold")
 def api_mark_sold(amulet_id: int):
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         c = conn.cursor()
-        c.execute("UPDATE amulets SET status = 'sold' WHERE id = ?", (amulet_id,))
+        c.execute("UPDATE amulets SET status = 'sold' WHERE id = %s", (amulet_id,))
         conn.commit()
         conn.close()
         return {"success": True, "message": "อัปเดตสถานะเป็น Sold สำเร็จ!"}
     except Exception as e:
         return {"success": False, "message": str(e)}
-    
 
-# ================= API: ระบบลบพระเครื่อง (เฉพาะ Admin เท่านั้น) =================
 @app.delete("/api/amulets/{amulet_id}")
 def api_delete_amulet(amulet_id: int, role: str = ""):
-    # ✨ เช็คสิทธิ์: ถ้าไม่ใช่แอดมิน ให้บล็อกทันที
     if role != 'admin':
         return {"success": False, "message": "ผู้ขายไม่อนุญาตให้ลบข้อมูลสินค้า เพื่อเก็บไว้เป็นประวัติการซื้อขาย"}
-        
-    # ✨ ถ้าเป็นแอดมิน (role == 'admin') ให้ข้ามมาทำคำสั่งลบด้านล่างนี้ได้เลย
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         c = conn.cursor()
-        c.execute("DELETE FROM amulets WHERE id = ?", (amulet_id,))
+        c.execute("DELETE FROM amulets WHERE id = %s", (amulet_id,))
         conn.commit()
         conn.close()
         return {"success": True, "message": "แอดมินลบรายการพระเครื่องสำเร็จ"}
     except Exception as e:
         return {"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}
 
-    # ================= API: ระบบจัดการสมาชิก (เฉพาะ Admin) =================
 @app.get("/api/users")
 def get_all_users():
-    conn = sqlite3.connect(DB_FILE)
+    conn = get_db_connection()
     c = conn.cursor()
-    # ✨ ต้องมีคำว่า id ตรงนี้
     c.execute("SELECT id, username, email, role FROM users ORDER BY id ASC")
     rows = c.fetchall()
     conn.close()
-    
     users_list = []
     for r in rows:
         users_list.append({
-            "id": r[0],         # ✨ ต้องมีบรรทัดนี้
+            "id": r[0],
             "username": r[1],
             "email": r[2] if r[2] else "-",
             "role": r[3]
@@ -1031,39 +895,27 @@ def get_all_users():
 @app.delete("/api/users/{user_id}")
 def delete_user(user_id: int):
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         c = conn.cursor()
-        
-        c.execute("SELECT username, role FROM users WHERE id = ?", (user_id,))
+        c.execute("SELECT username, role FROM users WHERE id = %s", (user_id,))
         user_info = c.fetchone()
-        
         if not user_info:
             conn.close()
             return JSONResponse(status_code=404, content={"message": "ไม่พบผู้ใช้งาน"})
-            
         if user_info[1] == 'admin':
             conn.close()
             return JSONResponse(status_code=400, content={"message": "ห้ามลบแอดมิน"})
-            
-        # ✨ สั่งลบด้วย id
-        c.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        c.execute("DELETE FROM users WHERE id = %s", (user_id,))
         conn.commit()
         conn.close()
         return {"success": True, "message": "ลบสำเร็จ"}
     except Exception as e:
         return JSONResponse(status_code=500, content={"message": str(e)})
-# ================= API: สรุปยอดขายรายวันเป็น Excel (CSV) =================
+
 @app.get("/api/reports/daily-sales")
 def api_daily_sales_report():
-    import pandas as pd
-    import os
-    from fastapi.responses import FileResponse, JSONResponse
-    import sqlite3
-
     try:
-        conn = sqlite3.connect(DB_FILE) 
-        
-        # ✨ เปลี่ยน LEFT JOIN users เป็น JOIN ธรรมดา เพื่อคัดกรองคนที่ถูกลบบัญชีออกไป ✨
+        conn = get_db_connection() 
         query = """
             SELECT 
                 u.username,
@@ -1077,43 +929,29 @@ def api_daily_sales_report():
         """
         df = pd.read_sql_query(query, conn)
         conn.close()
-
         if df.empty:
             return JSONResponse(status_code=404, content={"message": "ยังไม่มีประวัติการขายในระบบ"})
-
-        # แปลงเวลา UTC เป็นเวลาไทย (+7 ชั่วโมง)
         df['sold_date'] = pd.to_datetime(df['sold_date']) + pd.Timedelta(hours=7)
         df['วันที่ขาย'] = df['sold_date'].dt.date
-        
-        # ปรับแต่งคอลัมน์
         df.rename(columns={'username': 'ชื่อผู้ขาย', 'name': 'ชื่อพระเครื่อง', 'price': 'ราคาที่ขายได้ (บาท)'}, inplace=True)
         df = df[['วันที่ขาย', 'ชื่อผู้ขาย', 'ชื่อพระเครื่อง', 'ราคาที่ขายได้ (บาท)']]
         df['ยอดรวมของคนนี้ (บาท)'] = df.groupby('ชื่อผู้ขาย')['ราคาที่ขายได้ (บาท)'].transform('sum')
-
         report_path = "daily_sales_report.csv"
         df.to_csv(report_path, index=False, encoding='utf-8-sig')
-
         return FileResponse(report_path, media_type="text/csv", filename="สรุปยอดขายรายวัน.csv")
     except Exception as e:
         return JSONResponse(status_code=500, content={"message": f"เกิดข้อผิดพลาด: {str(e)}"})
     
-# ================= API: ระบบจัดการคำสั่งซื้อ (Orders) =================
-
 @app.post("/api/orders/create")
 def api_create_order(order: OrderCreate):
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         c = conn.cursor()
-        
-        # 1. บันทึกที่อยู่และเบอร์โทรลงตาราง orders
         c.execute('''INSERT INTO orders 
                      (amulet_id, buyer_id, buyer_name, buyer_phone, buyer_address, total_amount, status) 
-                     VALUES (?, ?, ?, ?, ?, ?, 'pending')''',
+                     VALUES (%s, %s, %s, %s, %s, %s, 'pending')''',
                   (order.amulet_id, order.buyer_id, order.buyer_name, order.buyer_phone, order.buyer_address, order.total_amount))
-        
-        # 2. เปลี่ยนสถานะพระเครื่องว่า 'ขายแล้ว'
-        c.execute("UPDATE amulets SET status = 'sold' WHERE id = ?", (order.amulet_id,))
-        
+        c.execute("UPDATE amulets SET status = 'sold' WHERE id = %s", (order.amulet_id,))
         conn.commit()
         conn.close()
         return {"success": True, "message": "สั่งซื้อสำเร็จ! รอผู้ขายจัดส่ง"}
@@ -1123,19 +961,17 @@ def api_create_order(order: OrderCreate):
 @app.get("/api/orders/seller/{seller_id}")
 def api_get_seller_orders(seller_id: int):
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         c = conn.cursor()
-        # ดึงออเดอร์เฉพาะของพระเครื่องที่ผู้ขายคนนี้เป็นคนลงขาย
         c.execute('''
             SELECT o.id, a.name, a.price, o.buyer_name, o.buyer_phone, o.buyer_address, o.status, o.created_at, o.amulet_id
             FROM orders o
             JOIN amulets a ON o.amulet_id = a.id
-            WHERE a.seller_id = ?
+            WHERE a.seller_id = %s
             ORDER BY o.created_at DESC
         ''', (seller_id,))
         rows = c.fetchall()
         conn.close()
-        
         orders = []
         for r in rows:
             orders.append({
@@ -1156,10 +992,9 @@ def api_get_seller_orders(seller_id: int):
 @app.post("/api/orders/{order_id}/update-status")
 def api_update_order_status(order_id: int, status: str = Form(...)):
     try:
-        conn = sqlite3.connect(DB_FILE)
+        conn = get_db_connection()
         c = conn.cursor()
-        # อัปเดตสถานะ เช่น 'shipped' (จัดส่งแล้ว) หรือ 'delivered'
-        c.execute("UPDATE orders SET status = ? WHERE id = ?", (status, order_id))
+        c.execute("UPDATE orders SET status = %s WHERE id = %s", (status, order_id))
         conn.commit()
         conn.close()
         return {"success": True, "message": f"อัปเดตสถานะการจัดส่งเรียบร้อย!"}
