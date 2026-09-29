@@ -1,5 +1,6 @@
 import time
 import os
+import gc
 import cv2
 import numpy as np
 from fastapi import FastAPI, UploadFile, File, Form
@@ -554,7 +555,11 @@ async def inspect_amulet(
             ref_upload = cloudinary.uploader.upload(ref_bytes)
             cand_url = cand_upload.get("secure_url")
             ref_url = ref_upload.get("secure_url")
+            
             save_log(final_id, 999.0, "FAIL", cand_url)
+
+            del ref_img, cand_img, ref_results, cand_results
+            gc.collect()
 
             return {
                 "success": True, "decision": "FAIL", "score": "N/A", "note": note,
@@ -571,7 +576,12 @@ async def inspect_amulet(
             cand_annotated = cand_results.plot()
             cand_upload = cloudinary.uploader.upload(cv2.imencode('.jpg', cand_annotated)[1].tobytes())
             cand_url = cand_upload.get("secure_url")
+            
             save_log(final_id, 999.0, "FAIL", cand_url)
+
+            del ref_img, cand_img, ref_results, cand_results
+            gc.collect()
+
             return {
                 "success": True, "decision": "FAIL", "score": "N/A",
                 "note": "พิมพ์ตรงกัน แต่ระบบหาขอบรูปทรงไม่เจอ",
@@ -639,6 +649,11 @@ async def inspect_amulet(
         
         save_log(final_id, chamfer_score, decision, overlay_url)
 
+        # --- เพิ่ม 2 บรรทัดนี้เพื่อรีดแรม ---
+        del ref_img, cand_img, ref_results, cand_results
+        gc.collect()
+        # -----------------------------
+
         return {
             "success": True, "amulet_id": final_id, "score": chamfer_score, "decision": decision,
             "note": final_note, 
@@ -649,6 +664,9 @@ async def inspect_amulet(
     except Exception as e:
         import traceback
         traceback.print_exc()
+        
+        gc.collect()
+        
         return {"success": False, "error_message": f"เซิร์ฟเวอร์ขัดข้อง: {str(e)}"}
 
 # ================= Other APIs =================
