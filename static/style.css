@@ -1300,6 +1300,8 @@ input[type="text"]:focus {
     color: #fff;
     border-radius: 8px;
     box-sizing: border-box;
+    /* ✨ บังคับให้เป็น 14px เพื่อหลอกให้ iPhone ซูมหน้าจอเข้ามาครับ */
+    font-size: 14px !important; 
 }
 .auth-input:focus {
     border-color: var(--color-primary);
@@ -1481,3 +1483,23 @@ html[data-theme="light"] .tab-btn.active {
   cursor: pointer;
 }
 .submit-btn:hover { background-color: #218838; }
+/* โค้ดสำหรับไอคอนหมุนๆ (Spinner) */
+.spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: #ffffff; /* สีของเส้นที่หมุน */
+    animation: spin 1s ease-in-out infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+/* 9. แก้ไขตัวหนังสือในกล่องบันทึกผลลัพธ์ (Summary Notes) ให้เป็นสีเข้มในโหมดสว่าง */
+html[data-theme="light"] .notes-content {
+    color: #1f2937 !important;
+}

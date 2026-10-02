@@ -44,15 +44,15 @@
             <h2 style="margin-bottom: 20px; color: var(--color-text);">สมัครสมาชิกใหม่</h2>
             <div class="form-group">
                 <label>ชื่อผู้ใช้งาน</label>
-                <input type="text" id="reg-username" class="auth-input" placeholder="ตั้งชื่อ Username">
+                <input type="text" id="reg-username" class="auth-input" placeholder="ตั้งชื่อ Username" autocomplete="username">
             </div>
             <div class="form-group">
                 <label>อีเมล</label>
-                <input type="email" id="reg-email" class="auth-input" placeholder="ใส่อีเมลของคุณ">
+                <input type="email" id="reg-email" class="auth-input" placeholder="ใส่อีเมลของคุณ" autocomplete="email">
             </div>
             <div class="form-group">
                 <label>รหัสผ่าน</label>
-                <input type="password" id="reg-password" class="auth-input" placeholder="ตั้งรหัสผ่าน">
+                <input type="password" id="reg-password" class="auth-input" placeholder="ตั้งรหัสผ่าน" autocomplete="new-password">
             </div>
             <div class="form-group">
                 <label>วัตถุประสงค์การใช้งาน (Role)</label>
@@ -455,6 +455,14 @@
         <!-- ตารางออเดอร์จะถูกสร้างตรงนี้อัตโนมัติ -->
     </div>
   </div>
+</div>
+<!-- โมดอลดูประวัติการสั่งซื้อ (สำหรับผู้ซื้อ) -->
+<div id="buyerOrdersModal" class="modal" style="display: none;">
+    <div class="modal-content" style="max-width: 800px; width: 90%;">
+        <span class="close-btn" onclick="closeModal('buyerOrdersModal')">&times;</span>
+        <h2 style="margin-bottom: 20px; color: #333;"><i class="fa-solid fa-box-open"></i> ประวัติการสั่งซื้อของฉัน</h2>
+        <div id="buyer-orders-container"></div>
+    </div>
 </div>
 </body>
 </html>

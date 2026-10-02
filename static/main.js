@@ -74,9 +74,12 @@ const checkLoginStatus = () => {
     if (user) {
         let roleTh = user.role === 'seller' ? 'ผู้ขาย' : (user.role === 'buyer' ? 'ผู้ซื้อ' : 'แอดมิน');
         if(navAuth) {
-            let orderBtnHTML = (user.role === 'seller' || user.role === 'admin') 
-                ? `<button class="btn-primary" style="margin: 0 10px; background-color: #f59e0b;" onclick="openSellerOrders()">📦 ออเดอร์ลูกค้า</button>` 
-                : '';
+            let orderBtnHTML = '';
+            if (user.role === 'seller' || user.role === 'admin') {
+                orderBtnHTML = `<button class="btn-primary" style="margin: 0 10px; background-color: #f59e0b;" onclick="openSellerOrders()">📦 ออเดอร์ลูกค้า</button>`;
+            } else if (user.role === 'buyer') {
+                orderBtnHTML = `<button class="btn-primary" style="margin: 0 10px; background-color: #3b82f6;" onclick="openBuyerOrders()">🛒 ประวัติการสั่งซื้อ</button>`;
+            }
                 
             navAuth.innerHTML = `
                 <span class="user-badge"><i class="fa-solid fa-user-circle"></i> ${user.username} (${roleTh})</span>
@@ -391,6 +394,10 @@ window.fetchMarketplace = async () => {
 };
 
 window.submitAddAmulet = async () => {
+    // 1. ค้นหาปุ่มกดที่อยู่ในหน้าต่างลงขาย (สมมติว่าเป็นคลาส btn-primary)
+    const submitBtn = document.querySelector('#add-amulet-modal .btn-primary');
+    const originalText = submitBtn ? submitBtn.innerHTML : 'โพสต์ขาย';
+
     try {
         const user = getSafeUser();
         if (!user || user.role !== 'seller') {
@@ -411,6 +418,14 @@ window.submitAddAmulet = async () => {
         const sellerId = user.id || user.user_id; 
         if (!sellerId) return alert('ไม่พบข้อมูล ID ของผู้ขาย กรุณาล็อกอินใหม่อีกครั้งครับ');
 
+        // ✨ [เพิ่มใหม่] เปลี่ยนสถานะปุ่มตอนกำลังโหลดรูปภาพ
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner"></span> กำลังโพสต์...';
+            submitBtn.style.cursor = 'not-allowed';
+            submitBtn.style.opacity = '0.7';
+        }
+
         const formData = new FormData();
         formData.append('seller_id', sellerId);
         formData.append('name', name);
@@ -422,7 +437,10 @@ window.submitAddAmulet = async () => {
 
         const res = await fetch('/api/amulets/add', { method: 'POST', body: formData });
         
-        if (!res.ok) return alert("ระบบหลังบ้านปฏิเสธการรับข้อมูล");
+        if (!res.ok) {
+            if (submitBtn) submitBtn.disabled = false; // คืนค่าปุ่มถ้า error
+            return alert("ระบบหลังบ้านปฏิเสธการรับข้อมูล");
+        }
 
         const data = await res.json();
         alert(data.message || "ลงประกาศขายพระเครื่องสำเร็จ!");
@@ -434,6 +452,14 @@ window.submitAddAmulet = async () => {
     } catch (err) {
         console.error("JavaScript Error:", err);
         alert("เกิดข้อผิดพลาดในการทำงานของหน้าเว็บครับ");
+    } finally {
+        // ✨ [เพิ่มใหม่] คืนค่าหน้าตาปุ่มกลับเป็นปกติเมื่อทำงานเสร็จสิ้น
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+            submitBtn.style.cursor = 'pointer';
+            submitBtn.style.opacity = '1';
+        }
     }
 };
 
@@ -974,8 +1000,14 @@ function closeOrderModal() {
 async function submitOrder(e) {
     e.preventDefault();
     
-    // ดึง user_id จากระบบ Login (สมมติว่าพี่เก็บไว้ใน localStorage)
-    const buyerId = localStorage.getItem('user_id') || 1; 
+    // ✨ ดึงข้อมูลผู้ซื้อที่ล็อกอินอยู่จริงๆ
+    const user = getSafeUser();
+    if (!user) {
+        alert('กรุณาล็อกอินก่อนทำการสั่งซื้อครับ');
+        return;
+    }
+    // ใช้ ID ของผู้ใช้งานคนนั้น
+    const buyerId = user.id || user.user_id; 
 
     const orderData = {
         amulet_id: parseInt(document.getElementById('orderAmuletId').value),
@@ -1093,5 +1125,68 @@ window.updateOrderStatus = async (orderId, newStatus) => {
         }
     } catch (err) {
         alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+    }
+};
+// ================= Buyer Dashboard (ประวัติการสั่งซื้อของผู้ซื้อ) =================
+window.openBuyerOrders = () => {
+    openModal('buyerOrdersModal');
+    window.fetchBuyerOrders();
+};
+
+window.fetchBuyerOrders = async () => {
+    const container = document.getElementById('buyer-orders-container');
+    const user = getSafeUser();
+    if (!user) return;
+    
+    const buyerId = user.id || user.user_id;
+    container.innerHTML = '<p style="text-align: center; color: #666;">กำลังโหลดข้อมูล...</p>';
+    
+    try {
+        const response = await fetch(`/api/orders/buyer/${buyerId}`);
+        const data = await response.json();
+        
+        if (data.success && data.orders.length > 0) {
+            let html = `
+                <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #ddd; background-color: #f9f9f9; color: #333;">
+                            <th style="padding: 10px;">วันที่สั่งซื้อ</th>
+                            <th style="padding: 10px;">ชื่อพระเครื่อง</th>
+                            <th style="padding: 10px;">ยอดสุทธิ</th>
+                            <th style="padding: 10px;">สถานะการจัดส่ง</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            data.orders.forEach(o => {
+                // เช็คสถานะเพื่อแสดงข้อความและสีให้ลูกค้าดูง่ายๆ
+                let statusHtml = '';
+                if (o.status === 'pending') {
+                    statusHtml = '<span style="color: #ef4444; font-weight: bold;"><i class="fa-solid fa-clock"></i> รอผู้ขายจัดส่ง</span>';
+                } else if (o.status === 'shipped') {
+                    statusHtml = '<span style="color: #f59e0b; font-weight: bold;"><i class="fa-solid fa-truck-fast"></i> จัดส่งแล้ว 🚚</span>';
+                    
+                } else if (o.status === 'delivered') {
+                    statusHtml = '<span style="color: #10b981; font-weight: bold;"><i class="fa-solid fa-check-circle"></i> ได้รับของแล้ว</span>';
+                }
+
+                html += `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px; color: #555;">${o.created_at ? o.created_at.split(' ')[0] : '-'}</td>
+                        <td style="padding: 10px; font-weight: bold; color: #333;">${o.amulet_name || 'พระเครื่อง'}</td>
+                        <td style="padding: 10px; color: #d97706; font-weight: bold;">฿${Number(o.price || o.total_amount || 0).toLocaleString()}</td>
+                        <td style="padding: 10px;">${statusHtml}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">คุณยังไม่มีประวัติการสั่งซื้อครับ</p>';
+        }
+    } catch (err) {
+        container.innerHTML = '<p style="text-align: center; color: red;">โหลดข้อมูลล้มเหลว กรุณาลองใหม่</p>';
     }
 };

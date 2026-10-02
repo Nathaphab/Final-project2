@@ -1019,6 +1019,32 @@ def api_update_order_status(order_id: int, status: str = Form(...)):
     except Exception as e:
         return {"success": False, "message": str(e)}
 
+@app.get("/api/orders/buyer/{buyer_id}")
+def api_get_buyer_orders(buyer_id: int):
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute('''
+            SELECT o.created_at, a.name, o.total_amount, o.status
+            FROM orders o
+            LEFT JOIN amulets a ON o.amulet_id = a.id
+            WHERE o.buyer_id = %s
+            ORDER BY o.created_at DESC
+        ''', (buyer_id,))
+        rows = c.fetchall()
+        conn.close()
+        
+        orders = []
+        for r in rows:
+            orders.append({
+                "created_at": str(r[0]) if r[0] else "-",
+                "amulet_name": r[1] if r[1] else "พระเครื่อง",
+                "price": r[2],
+                "status": r[3]
+            })
+        return {"success": True, "orders": orders}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
 # ================= Static File Mounting =================
 app.mount("/market_images", StaticFiles(directory="outputs/market_images"), name="market_images")
 app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
