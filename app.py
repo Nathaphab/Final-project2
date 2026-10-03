@@ -1045,6 +1045,38 @@ def api_get_buyer_orders(buyer_id: int):
         return {"success": True, "orders": orders}
     except Exception as e:
         return {"success": False, "message": str(e)}
+
+@app.get("/api/orders")
+def api_get_all_orders():
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        # ดึงออเดอร์ทั้งหมด พร้อมชื่อพระเครื่องและชื่อผู้ซื้อ
+        c.execute('''
+            SELECT o.created_at, a.name, o.buyer_name, o.total_amount, o.status, o.id
+            FROM orders o
+            LEFT JOIN amulets a ON o.amulet_id = a.id
+            ORDER BY o.created_at DESC
+        ''')
+        rows = c.fetchall()
+        conn.close()
+        
+        orders = []
+        for r in rows:
+            orders.append({
+                "created_at": str(r[0]) if r[0] else "-",
+                "amulet_name": r[1] if r[1] else "พระเครื่อง",
+                "buyer_name": r[2] if r[2] else "-",
+                "price": r[3],
+                "status": r[4],
+                "order_id": r[5]
+            })
+        return {"success": True, "orders": orders}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "message": str(e)}
+    
 # ================= Static File Mounting =================
 app.mount("/market_images", StaticFiles(directory="outputs/market_images"), name="market_images")
 app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")

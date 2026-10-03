@@ -75,9 +75,21 @@ const checkLoginStatus = () => {
         let roleTh = user.role === 'seller' ? 'ผู้ขาย' : (user.role === 'buyer' ? 'ผู้ซื้อ' : 'แอดมิน');
         if(navAuth) {
             let orderBtnHTML = '';
-            if (user.role === 'seller' || user.role === 'admin') {
-                orderBtnHTML = `<button class="btn-primary" style="margin: 0 10px; background-color: #f59e0b;" onclick="openSellerOrders()">📦 ออเดอร์ลูกค้า</button>`;
+            
+            // ✨ แยกสิทธิ์การเห็นปุ่มให้ชัดเจน ✨
+            if (user.role === 'seller') {
+                // ผู้ขาย: เห็นทั้งปุ่ม "ออเดอร์ลูกค้า" (ของตัวเอง) และ "ประวัติการสั่งซื้อ"
+                orderBtnHTML = `
+                    <button class="btn-primary" style="margin: 0 5px; background-color: #f59e0b;" onclick="openSellerOrders()">📦 ออเดอร์ลูกค้า</button>
+                    <button class="btn-primary" style="margin: 0 5px; background-color: #3b82f6;" onclick="openBuyerOrders()">🛒 ประวัติการสั่งซื้อ</button>
+                `;
+            } else if (user.role === 'admin' || user.username === 'admin') {
+                // แอดมิน: เห็นแค่ปุ่ม "ประวัติการสั่งซื้อ" เอาไว้ดูภาพรวมของทุกคนในระบบ
+                orderBtnHTML = `
+                    <button class="btn-primary" style="margin: 0 5px; background-color: #3b82f6;" onclick="openBuyerOrders()">🛒 ประวัติการสั่งซื้อ</button>
+                `;
             } else if (user.role === 'buyer') {
+                // ผู้ซื้อ: เห็นแค่ปุ่ม "ประวัติการสั่งซื้อ" (ของตัวเอง)
                 orderBtnHTML = `<button class="btn-primary" style="margin: 0 10px; background-color: #3b82f6;" onclick="openBuyerOrders()">🛒 ประวัติการสั่งซื้อ</button>`;
             }
                 
@@ -1040,6 +1052,17 @@ async function submitOrder(e) {
     }
 }
 
+// ================= ฟังก์ชันช่วยแปลงเวลา UTC เป็นเวลาไทย =================
+const formatThaiTime = (utcStr) => {
+    if (!utcStr) return '-';
+    // บังคับให้ JS รู้ว่าเป็นเวลาสากล (UTC) โดยเติม Z ต่อท้าย
+    const d = new Date(utcStr + (utcStr.includes('Z') ? '' : 'Z'));
+    if (isNaN(d.getTime())) return utcStr.replace('T', ' ').split('.')[0]; 
+    
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+};
+
 // ================= Seller Dashboard (ระบบจัดการคำสั่งซื้อ) =================
 window.openSellerOrders = () => {
     openModal('sellerOrdersModal');
@@ -1051,9 +1074,8 @@ window.fetchSellerOrders = async () => {
     const user = getSafeUser();
     if (!user) return;
     
-    // ดึง ID ของผู้ขายที่ล็อกอินอยู่
     const sellerId = user.id || user.user_id;
-    container.innerHTML = '<p style="text-align: center; color: #666;">กำลังโหลดข้อมูล...</p>';
+    container.innerHTML = '<p style="text-align: center; color: var(--color-text-muted);">กำลังโหลดข้อมูล...</p>';
     
     try {
         const response = await fetch(`/api/orders/seller/${sellerId}`);
@@ -1063,13 +1085,13 @@ window.fetchSellerOrders = async () => {
             let html = `
                 <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
                     <thead>
-                        <tr style="border-bottom: 2px solid #ddd; background-color: #f9f9f9;">
-                            <th style="padding: 10px;">วันที่สั่งซื้อ</th>
-                            <th style="padding: 10px;">ชื่อพระเครื่อง</th>
-                            <th style="padding: 10px;">ข้อมูลลูกค้า</th>
-                            <th style="padding: 10px;">ที่อยู่จัดส่ง</th>
-                            <th style="padding: 10px;">ยอดสุทธิ</th>
-                            <th style="padding: 10px;">การจัดส่ง</th>
+                        <tr style="border-bottom: 2px solid var(--color-border);">
+                            <th style="padding: 10px; color: var(--color-text);">วันที่สั่งซื้อ</th>
+                            <th style="padding: 10px; color: var(--color-text);">ชื่อพระเครื่อง</th>
+                            <th style="padding: 10px; color: var(--color-text);">ข้อมูลลูกค้า</th>
+                            <th style="padding: 10px; color: var(--color-text);">ที่อยู่จัดส่ง</th>
+                            <th style="padding: 10px; color: var(--color-text);">ยอดสุทธิ</th>
+                            <th style="padding: 10px; color: var(--color-text);">การจัดส่ง</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1079,14 +1101,14 @@ window.fetchSellerOrders = async () => {
                 let statusColor = o.status === 'pending' ? '#ef4444' : (o.status === 'shipped' ? '#10b981' : '#3b82f6');
                 
                 html += `
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding: 10px;">${o.created_at.split(' ')[0]}</td>
-                        <td style="padding: 10px; font-weight: bold; color: #333;">${o.amulet_name}</td>
-                        <td style="padding: 10px;">${o.buyer_name}<br><span style="color: #666;"><i class="fa-solid fa-phone"></i> ${o.buyer_phone}</span></td>
-                        <td style="padding: 10px; max-width: 250px; line-height: 1.4;">${o.buyer_address}</td>
+                    <tr style="border-bottom: 1px solid var(--color-border);">
+                        <td style="padding: 10px; color: var(--color-text);">${formatThaiTime(o.created_at)}</td>
+                        <td style="padding: 10px; font-weight: bold; color: var(--color-text);">${o.amulet_name}</td>
+                        <td style="padding: 10px; color: var(--color-text);">${o.buyer_name}<br><span style="color: var(--color-text-muted);"><i class="fa-solid fa-phone"></i> ${o.buyer_phone}</span></td>
+                        <td style="padding: 10px; max-width: 250px; line-height: 1.4; color: var(--color-text);">${o.buyer_address}</td>
                         <td style="padding: 10px; color: #d97706; font-weight: bold;">฿${o.price.toLocaleString()}</td>
                         <td style="padding: 10px;">
-                            <select onchange="updateOrderStatus(${o.order_id}, this.value)" style="padding: 6px; border-radius: 4px; border: 2px solid ${statusColor}; font-weight: bold; cursor: pointer; outline: none;">
+                            <select onchange="updateOrderStatus(${o.order_id}, this.value)" style="padding: 6px; border-radius: 4px; border: 2px solid ${statusColor}; font-weight: bold; cursor: pointer; outline: none; background-color: var(--color-bg); color: var(--color-text);">
                                 <option value="pending" ${o.status === 'pending' ? 'selected' : ''}>รอจัดส่ง ⏳</option>
                                 <option value="shipped" ${o.status === 'shipped' ? 'selected' : ''}>จัดส่งแล้ว 🚚</option>
                                 <option value="delivered" ${o.status === 'delivered' ? 'selected' : ''}>ลูกค้าได้รับของ ✅</option>
@@ -1099,10 +1121,10 @@ window.fetchSellerOrders = async () => {
             html += `</tbody></table>`;
             container.innerHTML = html;
         } else {
-            container.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">ยังไม่มีคำสั่งซื้อเข้ามาในระบบครับ</p>';
+            container.innerHTML = '<p style="text-align: center; color: var(--color-text-muted); padding: 20px;">ยังไม่มีคำสั่งซื้อเข้ามาในระบบครับ</p>';
         }
     } catch (err) {
-        container.innerHTML = '<p style="text-align: center; color: red;">โหลดข้อมูลล้มเหลว กรุณาลองใหม่</p>';
+        container.innerHTML = '<p style="text-align: center; color: #ef4444;">โหลดข้อมูลล้มเหลว กรุณาลองใหม่</p>';
     }
 };
 
@@ -1120,16 +1142,26 @@ window.updateOrderStatus = async (orderId, newStatus) => {
         if (!data.success) {
             alert('อัปเดตสถานะไม่สำเร็จ: ' + data.message);
         } else {
-            // โหลดสีขอบ Dropdown ใหม่ให้ตรงกับสถานะ
             window.fetchSellerOrders(); 
         }
     } catch (err) {
         alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
     }
 };
+
 // ================= Buyer Dashboard (ประวัติการสั่งซื้อของผู้ซื้อ) =================
 window.openBuyerOrders = () => {
     openModal('buyerOrdersModal');
+    
+    // ✨ เช็กว่าเป็นแอดมินหรือไม่ เพื่อเปลี่ยนหัวข้อ Modal ให้ตรงกับบริบท
+    const user = getSafeUser();
+    const modalTitle = document.querySelector('#buyerOrdersModal h2');
+    if (user && (user.role === 'admin' || user.username === 'admin')) {
+        modalTitle.innerHTML = '<i class="fa-solid fa-users"></i> ประวัติการสั่งซื้อของลูกค้า';
+    } else {
+        modalTitle.innerHTML = '<i class="fa-solid fa-box-open"></i> ประวัติการสั่งซื้อของฉัน';
+    }
+
     window.fetchBuyerOrders();
 };
 
@@ -1139,42 +1171,46 @@ window.fetchBuyerOrders = async () => {
     if (!user) return;
     
     const buyerId = user.id || user.user_id;
-    container.innerHTML = '<p style="text-align: center; color: #666;">กำลังโหลดข้อมูล...</p>';
+    const isAdmin = user.role === 'admin' || user.username === 'admin'; // ✨ เช็กสิทธิ์
+    
+    container.innerHTML = '<p style="text-align: center; color: var(--color-text-muted);">กำลังโหลดข้อมูล...</p>';
     
     try {
-        const response = await fetch(`/api/orders/buyer/${buyerId}`);
+        // ✨ แอดมินดึงออเดอร์ทั้งหมด (ใช้ /api/orders) ส่วนผู้ซื้อดึงเฉพาะของตัวเอง
+        const apiPath = isAdmin ? '/api/orders' : `/api/orders/buyer/${buyerId}`;
+        const response = await fetch(apiPath);
         const data = await response.json();
         
-        if (data.success && data.orders.length > 0) {
+        if (data.success && data.orders && data.orders.length > 0) {
             let html = `
                 <table style="width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem;">
                     <thead>
-                        <tr style="border-bottom: 2px solid #ddd; background-color: #f9f9f9; color: #333;">
-                            <th style="padding: 10px;">วันที่สั่งซื้อ</th>
-                            <th style="padding: 10px;">ชื่อพระเครื่อง</th>
-                            <th style="padding: 10px;">ยอดสุทธิ</th>
-                            <th style="padding: 10px;">สถานะการจัดส่ง</th>
+                        <tr style="border-bottom: 2px solid var(--color-border);">
+                            <th style="padding: 10px; color: var(--color-text);">วันที่สั่งซื้อ</th>
+                            <th style="padding: 10px; color: var(--color-text);">ชื่อพระเครื่อง</th>
+                            ${isAdmin ? '<th style="padding: 10px; color: var(--color-text);">ชื่อลูกค้า</th>' : ''} <!-- ✨ แสดงคอลัมน์ชื่อลูกค้าเฉพาะแอดมิน -->
+                            <th style="padding: 10px; color: var(--color-text);">ยอดสุทธิ</th>
+                            <th style="padding: 10px; color: var(--color-text);">สถานะการจัดส่ง</th>
                         </tr>
                     </thead>
                     <tbody>
             `;
             
             data.orders.forEach(o => {
-                // เช็คสถานะเพื่อแสดงข้อความและสีให้ลูกค้าดูง่ายๆ
                 let statusHtml = '';
                 if (o.status === 'pending') {
                     statusHtml = '<span style="color: #ef4444; font-weight: bold;"><i class="fa-solid fa-clock"></i> รอผู้ขายจัดส่ง</span>';
                 } else if (o.status === 'shipped') {
                     statusHtml = '<span style="color: #f59e0b; font-weight: bold;"><i class="fa-solid fa-truck-fast"></i> จัดส่งแล้ว 🚚</span>';
-                    
                 } else if (o.status === 'delivered') {
                     statusHtml = '<span style="color: #10b981; font-weight: bold;"><i class="fa-solid fa-check-circle"></i> ได้รับของแล้ว</span>';
                 }
 
                 html += `
-                    <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding: 10px; color: #555;">${o.created_at ? o.created_at.split(' ')[0] : '-'}</td>
-                        <td style="padding: 10px; font-weight: bold; color: #333;">${o.amulet_name || 'พระเครื่อง'}</td>
+                    <tr style="border-bottom: 1px solid var(--color-border);">
+                        <td style="padding: 10px; color: var(--color-text-muted);">${formatThaiTime(o.created_at)}</td>
+                        <td style="padding: 10px; font-weight: bold; color: var(--color-text);">${o.amulet_name || 'พระเครื่อง'}</td>
+                        ${isAdmin ? `<td style="padding: 10px; color: var(--color-text);">${o.buyer_name || '-'}</td>` : ''} <!-- ✨ ดึงข้อมูลชื่อลูกค้ามาโชว์ -->
                         <td style="padding: 10px; color: #d97706; font-weight: bold;">฿${Number(o.price || o.total_amount || 0).toLocaleString()}</td>
                         <td style="padding: 10px;">${statusHtml}</td>
                     </tr>
@@ -1184,9 +1220,9 @@ window.fetchBuyerOrders = async () => {
             html += `</tbody></table>`;
             container.innerHTML = html;
         } else {
-            container.innerHTML = '<p style="text-align: center; color: #888; padding: 20px;">คุณยังไม่มีประวัติการสั่งซื้อครับ</p>';
+            container.innerHTML = '<p style="text-align: center; color: var(--color-text-muted); padding: 20px;">ยังไม่มีประวัติการสั่งซื้อครับ</p>';
         }
     } catch (err) {
-        container.innerHTML = '<p style="text-align: center; color: red;">โหลดข้อมูลล้มเหลว กรุณาลองใหม่</p>';
+        container.innerHTML = '<p style="text-align: center; color: #ef4444;">โหลดข้อมูลล้มเหลว (สำหรับแอดมิน: กรุณาตรวจสอบว่ามี API /api/orders สำหรับดึงออเดอร์ทั้งหมดแล้ว)</p>';
     }
 };
