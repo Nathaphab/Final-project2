@@ -11,7 +11,7 @@ import uvicorn
 from ultralytics import YOLO
 from PIL import Image, ImageDraw, ImageFont
 import shutil
-from datetime import datetime
+from datetime import datetime, timedelta
 import hashlib
 import pandas as pd
 from scipy import ndimage
@@ -20,6 +20,10 @@ from dotenv import load_dotenv
 import cloudinary
 import cloudinary.uploader
 import cloudinary.api
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import secrets
 
 # โหลดโมเดล YOLO เตรียมไว้ตั้งแต่เริ่มรันเซิร์ฟเวอร์
 try:
@@ -127,6 +131,15 @@ def init_db():
                     role TEXT NOT NULL,
                     status TEXT DEFAULT 'active'
                  )''')
+                 
+    # ✨ เพิ่มคอลัมน์สำหรับการยืนยันอีเมลและรีเซ็ตรหัสผ่าน
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token TEXT")
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT")
+        c.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS token_expiry TIMESTAMP")
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
 
     c.execute('''CREATE TABLE IF NOT EXISTS orders (
                     id SERIAL PRIMARY KEY,
@@ -143,12 +156,39 @@ def init_db():
     c.execute("SELECT * FROM users WHERE email = 'admin@system.com'")
     if not c.fetchone():
         hashed_pw = hash_password('admin123')
-        c.execute("INSERT INTO users (username, email, password, role) VALUES ('admin', 'admin@system.com', %s, 'admin')", (hashed_pw,))
+        c.execute("INSERT INTO users (username, email, password, role, status) VALUES ('admin', 'admin@system.com', %s, 'admin', 'active')", (hashed_pw,))
 
     conn.commit()
     conn.close()
 
 init_db()
+
+# ================= Email Setup =================
+def send_email(to_email, subject, html_body):
+    smtp_email = os.environ.get("SMTP_EMAIL")
+    smtp_password = os.environ.get("SMTP_PASSWORD")
+    
+    if not smtp_email or not smtp_password:
+        print("❌ ตั้งค่าอีเมลใน .env ไม่ครบถ้วน")
+        return False
+        
+    msg = MIMEMultipart()
+    msg['From'] = f"Smart Amulet <{smtp_email}>"
+    msg['To'] = to_email
+    msg['Subject'] = subject
+    msg.attach(MIMEText(html_body, 'html'))
+    
+    try:
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(smtp_email, smtp_password)
+        text = msg.as_string()
+        server.sendmail(smtp_email, to_email, text)
+        server.quit()
+        return True
+    except Exception as e:
+        print(f"❌ ส่งอีเมลล้มเหลว: {e}")
+        return False
 
 # ================= Pydantic Models =================
 class UserRegister(BaseModel):
@@ -160,6 +200,13 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     email: str
     password: str
+
+class ForgotPasswordReq(BaseModel):
+    email: str
+
+class ResetPasswordReq(BaseModel):
+    token: str
+    new_password: str
 
 class OrderCreate(BaseModel):
     amulet_id: int
@@ -319,7 +366,7 @@ def to_web_overlay_path(overlay_path: str) -> str:
     if not overlay_path:
         return ""
     if str(overlay_path).startswith("http"):
-        return overlay_path # ถ้าเป็นลิงก์ Cloudinary ให้ใช้ได้เลย
+        return overlay_path 
     filename = os.path.basename(overlay_path)
     return f"/outputs/overlays/{filename}"
 
@@ -501,6 +548,157 @@ def draw_thai_text_on_cv_image(image_cv, text, position, font_path, font_size, c
     image_final = cv2.cvtColor(np.array(image_pil), cv2.COLOR_RGB2BGR)
     return image_final
 
+# ================= Auth & Email APIs =================
+@app.post("/api/register")
+def api_register(user: UserRegister):
+    import re  
+    if user.role not in ['buyer', 'seller']:
+        return {"success": False, "message": "Role ไม่ถูกต้อง"}
+    email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+    if not re.match(email_regex, user.email):
+        return {"success": False, "message": "รูปแบบอีเมลไม่ถูกต้อง กรุณากรอกอีเมลให้ถูกหลัก (เช่น name@gmail.com)"}
+        
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT id FROM users WHERE email=%s", (user.email,))
+        if c.fetchone():
+            return {"success": False, "message": "อีเมลนี้ถูกใช้สมัครไปแล้ว กรุณาใช้อีเมลอื่น"}
+            
+        hashed_pw = hash_password(user.password)
+        verify_token = secrets.token_hex(20) # สร้างรหัสยืนยันตัวตน
+        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3001")
+        
+        c.execute("INSERT INTO users (username, email, password, role, status, verification_token) VALUES (%s, %s, %s, %s, 'pending', %s)",
+                  (user.username, user.email, hashed_pw, user.role, verify_token))
+        conn.commit()
+        
+        verify_link = f"{frontend_url}/?verify={verify_token}"
+        email_body = f"""
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+            <h2 style="color: #3b82f6;">ยินดีต้อนรับสู่ Smart Amulet Verification!</h2>
+            <p>สวัสดีคุณ {user.username},</p>
+            <p>ขอบคุณที่สมัครสมาชิกกับเรา กรุณาคลิกที่ปุ่มด้านล่างเพื่อยืนยันอีเมลของคุณและเริ่มต้นใช้งาน:</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{verify_link}" style="padding: 12px 25px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">ยืนยันอีเมลของฉัน</a>
+            </div>
+            <p style="font-size: 12px; color: #666;">หรือคัดลอกลิงก์นี้ไปวางในเบราว์เซอร์: <br><a href="{verify_link}">{verify_link}</a></p>
+            <p>ขอบคุณครับ,<br>ทีมงาน Smart Amulet</p>
+        </div>
+        """
+        send_email(user.email, "ยืนยันการสมัครสมาชิก Smart Amulet", email_body)
+        
+        return {"success": True, "message": "สมัครสมาชิกสำเร็จ! ระบบได้ส่งลิงก์ยืนยันไปที่อีเมลของคุณแล้ว (โปรดเช็คกล่องจดหมายหรือสแปม)"}
+    except Exception as e:
+        return {"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}
+    finally:
+        conn.close()
+
+@app.get("/api/verify-email")
+def api_verify_email(token: str):
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT id FROM users WHERE verification_token=%s", (token,))
+        row = c.fetchone()
+        if row:
+            c.execute("UPDATE users SET status='active', verification_token=NULL WHERE id=%s", (row[0],))
+            conn.commit()
+            return {"success": True, "message": "ยืนยันอีเมลสำเร็จ! คุณสามารถเข้าสู่ระบบได้แล้ว"}
+        else:
+            return {"success": False, "message": "ลิงก์ยืนยันไม่ถูกต้อง หรือถูกใช้งานไปแล้ว"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+    finally:
+        conn.close()
+
+@app.post("/api/forgot-password")
+def api_forgot_password(req: ForgotPasswordReq):
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT id, username FROM users WHERE email=%s", (req.email,))
+        row = c.fetchone()
+        if not row:
+            return {"success": False, "message": "ไม่พบอีเมลนี้ในระบบของเรา"}
+            
+        reset_token = secrets.token_hex(20)
+        expiry = datetime.now() + timedelta(hours=1)
+        
+        c.execute("UPDATE users SET reset_token=%s, token_expiry=%s WHERE id=%s", (reset_token, expiry, row[0]))
+        conn.commit()
+        
+        frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3001")
+        reset_link = f"{frontend_url}/?reset={reset_token}"
+        
+        email_body = f"""
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
+            <h2 style="color: #f59e0b;">รีเซ็ตรหัสผ่าน Smart Amulet</h2>
+            <p>สวัสดีคุณ {row[1]},</p>
+            <p>เราได้รับการแจ้งเตือนว่าคุณลืมรหัสผ่าน กรุณาคลิกที่ปุ่มด้านล่างเพื่อตั้งรหัสผ่านใหม่ (ลิงก์นี้มีอายุ 1 ชั่วโมง):</p>
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{reset_link}" style="padding: 12px 25px; background-color: #f59e0b; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 16px;">ตั้งรหัสผ่านใหม่</a>
+            </div>
+            <p style="font-size: 12px; color: #666;">หรือคัดลอกลิงก์นี้ไปวางในเบราว์เซอร์: <br><a href="{reset_link}">{reset_link}</a></p>
+            <p style="color: #ef4444; font-size: 13px;">หากคุณไม่ได้ร้องขอการเปลี่ยนรหัสผ่าน สามารถละเว้นอีเมลฉบับนี้ได้เลย บัญชีของคุณยังคงปลอดภัย</p>
+        </div>
+        """
+        send_email(req.email, "รีเซ็ตรหัสผ่าน Smart Amulet", email_body)
+        
+        return {"success": True, "message": "ระบบได้ส่งลิงก์สำหรับรีเซ็ตรหัสผ่านไปยังอีเมลของคุณแล้ว"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+    finally:
+        conn.close()
+
+@app.post("/api/reset-password")
+def api_reset_password(req: ResetPasswordReq):
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT id, token_expiry FROM users WHERE reset_token=%s", (req.token,))
+        row = c.fetchone()
+        if not row:
+            return {"success": False, "message": "ลิงก์รีเซ็ตรหัสผ่านไม่ถูกต้อง หรือถูกใช้งานไปแล้ว"}
+            
+        if row[1] < datetime.now():
+            return {"success": False, "message": "ลิงก์นี้หมดอายุแล้ว กรุณากดลืมรหัสผ่านใหม่อีกครั้ง"}
+            
+        hashed_pw = hash_password(req.new_password)
+        c.execute("UPDATE users SET password=%s, reset_token=NULL, token_expiry=NULL WHERE id=%s", (hashed_pw, row[0]))
+        conn.commit()
+        
+        return {"success": True, "message": "รีเซ็ตรหัสผ่านสำเร็จ! คุณสามารถเข้าสู่ระบบด้วยรหัสผ่านใหม่ได้ทันที"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+    finally:
+        conn.close()
+
+@app.post("/api/login")
+def api_login(user: UserLogin):
+    conn = get_db_connection()
+    c = conn.cursor()
+    hashed_pw = hash_password(user.password)
+    c.execute("SELECT id, username, role, status FROM users WHERE email=%s AND password=%s", 
+              (user.email, hashed_pw))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        if row[3] == 'pending':
+            return {"success": False, "message": "กรุณายืนยันอีเมลของคุณก่อนเข้าสู่ระบบ (เช็คกล่องจดหมาย หรือโฟลเดอร์สแปม)"}
+        if row[3] == 'suspended':
+            return {"success": False, "message": "บัญชีของคุณถูกระงับ"}
+            
+        return {
+            "success": True, 
+            "message": "เข้าสู่ระบบสำเร็จ!", 
+            "user_id": row[0], 
+            "username": row[1], 
+            "role": row[2]
+        }
+    else:
+        return {"success": False, "message": "อีเมลหรือรหัสผ่านไม่ถูกต้อง"}
+
 # ================= AI Inspect API =================
 @app.post("/api/inspect")
 async def inspect_amulet(
@@ -649,10 +847,8 @@ async def inspect_amulet(
         
         save_log(final_id, chamfer_score, decision, overlay_url)
 
-        # --- เพิ่ม 2 บรรทัดนี้เพื่อรีดแรม ---
         del ref_img, cand_img, ref_results, cand_results
         gc.collect()
-        # -----------------------------
 
         return {
             "success": True, "amulet_id": final_id, "score": chamfer_score, "decision": decision,
@@ -664,9 +860,7 @@ async def inspect_amulet(
     except Exception as e:
         import traceback
         traceback.print_exc()
-        
         gc.collect()
-        
         return {"success": False, "error_message": f"เซิร์ฟเวอร์ขัดข้อง: {str(e)}"}
 
 # ================= Other APIs =================
@@ -729,69 +923,43 @@ def api_download_csv():
         return FileResponse(LOG_CSV, media_type="text/csv", filename="inspection_log.csv")
     return JSONResponse(status_code=404, content={"message": "ยังไม่มีไฟล์ประวัติ"})
 
-@app.post("/api/register")
-def api_register(user: UserRegister):
-    import re  
-    if user.role not in ['buyer', 'seller']:
-        return {"success": False, "message": "Role ไม่ถูกต้อง"}
-    email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
-    if not re.match(email_regex, user.email):
-        return {"success": False, "message": "รูปแบบอีเมลไม่ถูกต้อง กรุณากรอกอีเมลให้ถูกหลัก (เช่น name@gmail.com)"}
+@app.get("/api/users")
+def get_all_users():
     conn = get_db_connection()
     c = conn.cursor()
+    c.execute("SELECT id, username, email, role, status FROM users ORDER BY id ASC")
+    rows = c.fetchall()
+    conn.close()
+    users_list = []
+    for r in rows:
+        users_list.append({
+            "id": r[0],
+            "username": r[1],
+            "email": r[2] if r[2] else "-",
+            "role": r[3],
+            "status": r[4] if len(r) > 4 else "active"
+        })
+    return users_list
+
+@app.delete("/api/users/{user_id}")
+def delete_user(user_id: int):
     try:
-        c.execute("SELECT id FROM users WHERE email=%s", (user.email,))
-        if c.fetchone():
-            return {"success": False, "message": "อีเมลนี้ถูกใช้สมัครไปแล้ว กรุณาใช้อีเมลอื่น"}
-        hashed_pw = hash_password(user.password)
-        c.execute("INSERT INTO users (username, email, password, role) VALUES (%s, %s, %s, %s)",
-                  (user.username, user.email, hashed_pw, user.role))
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT username, role FROM users WHERE id = %s", (user_id,))
+        user_info = c.fetchone()
+        if not user_info:
+            conn.close()
+            return JSONResponse(status_code=404, content={"message": "ไม่พบผู้ใช้งาน"})
+        if user_info[1] == 'admin':
+            conn.close()
+            return JSONResponse(status_code=400, content={"message": "ห้ามลบแอดมิน"})
+        c.execute("DELETE FROM users WHERE id = %s", (user_id,))
         conn.commit()
-        return {"success": True, "message": "สมัครสมาชิกสำเร็จ! สามารถเข้าสู่ระบบได้เลย"}
-    except Exception as e:
-        return {"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}
-    finally:
         conn.close()
-
-@app.post("/api/login")
-def api_login(user: UserLogin):
-    conn = get_db_connection()
-    c = conn.cursor()
-    hashed_pw = hash_password(user.password)
-    c.execute("SELECT id, username, role, status FROM users WHERE email=%s AND password=%s", 
-              (user.email, hashed_pw))
-    row = c.fetchone()
-    conn.close()
-    if row:
-        if row[3] == 'suspended':
-            return {"success": False, "message": "บัญชีของคุณถูกระงับ"}
-        return {
-            "success": True, 
-            "message": "เข้าสู่ระบบสำเร็จ!", 
-            "user_id": row[0], 
-            "username": row[1], 
-            "role": row[2]
-        }
-    else:
-        return {"success": False, "message": "อีเมลหรือรหัสผ่านไม่ถูกต้อง"}
-
-@app.get("/api/admin/users")
-def api_get_users():
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT id, username, email, role, status FROM users")
-    users = [{"id": row[0], "username": row[1], "email": row[2], "role": row[3], "status": row[4]} for row in c.fetchall()]
-    conn.close()
-    return {"success": True, "users": users}
-
-@app.post("/api/admin/update-user-status")
-def api_update_user_status(user_id: int, status: str):
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("UPDATE users SET status=%s WHERE id=%s", (status, user_id))
-    conn.commit()
-    conn.close()
-    return {"success": True, "message": f"อัปเดตสถานะผู้ใช้ {user_id} เป็น {status} เรียบร้อย"}
+        return {"success": True, "message": "ลบสำเร็จ"}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"message": str(e)})
 
 @app.get("/api/admin/stats")
 def api_get_stats():
@@ -892,43 +1060,6 @@ def api_delete_amulet(amulet_id: int, role: str = ""):
         return {"success": True, "message": "แอดมินลบรายการพระเครื่องสำเร็จ"}
     except Exception as e:
         return {"success": False, "message": f"เกิดข้อผิดพลาด: {str(e)}"}
-
-@app.get("/api/users")
-def get_all_users():
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("SELECT id, username, email, role FROM users ORDER BY id ASC")
-    rows = c.fetchall()
-    conn.close()
-    users_list = []
-    for r in rows:
-        users_list.append({
-            "id": r[0],
-            "username": r[1],
-            "email": r[2] if r[2] else "-",
-            "role": r[3]
-        })
-    return users_list
-
-@app.delete("/api/users/{user_id}")
-def delete_user(user_id: int):
-    try:
-        conn = get_db_connection()
-        c = conn.cursor()
-        c.execute("SELECT username, role FROM users WHERE id = %s", (user_id,))
-        user_info = c.fetchone()
-        if not user_info:
-            conn.close()
-            return JSONResponse(status_code=404, content={"message": "ไม่พบผู้ใช้งาน"})
-        if user_info[1] == 'admin':
-            conn.close()
-            return JSONResponse(status_code=400, content={"message": "ห้ามลบแอดมิน"})
-        c.execute("DELETE FROM users WHERE id = %s", (user_id,))
-        conn.commit()
-        conn.close()
-        return {"success": True, "message": "ลบสำเร็จ"}
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"message": str(e)})
 
 @app.get("/api/reports/daily-sales")
 def api_daily_sales_report():
@@ -1051,7 +1182,6 @@ def api_get_all_orders():
     try:
         conn = get_db_connection()
         c = conn.cursor()
-        # ดึงออเดอร์ทั้งหมด พร้อมชื่อพระเครื่องและชื่อผู้ซื้อ
         c.execute('''
             SELECT o.created_at, a.name, o.buyer_name, o.total_amount, o.status, o.id
             FROM orders o

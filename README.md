@@ -1,67 +1,47 @@
-# Industrial Amulet Comparator - Classroom Demo
+# Smart Amulet Verification & Marketplace
+ระบบตรวจสอบพระเครื่องอัจฉริยะด้วย AI และแพลตฟอร์มตลาดกลางสำหรับซื้อขายพระเครื่อง (Full-Stack Web Application)
 
-Web App สำหรับเดโมในห้องเรียน โดยรับภาพอ้างอิง (REF) และภาพพระที่ต้องการตรวจ (Candidate) แล้วคำนวณคะแนนความต่างเชิง contour พร้อมตัดสิน PASS/FAIL
+## 🌟 จุดเด่นของเวอร์ชันปัจจุบัน (Major Update)
+โปรเจกต์นี้ได้รับการอัปเกรดจาก Classroom Demo เป็นระบบ Production-ready ที่มีฟีเจอร์ครบถ้วน:
 
-## จุดเด่นของเวอร์ชันนี้
-- ปรับ preprocessing ให้ทนต่อคราบ ผิวไม่สม่ำเสมอ และแสงไม่เรียบมากขึ้น
-- ใช้ adaptive threshold + CLAHE + morphology cleanup
-- ใช้ median distance เป็นคะแนนหลัก เพื่อให้ robust กว่า trimmed mean
-- เพิ่มช่อง `Amulet ID` เพื่อบันทึกรหัสพระแต่ละองค์ลง CSV
-- บันทึกภาพ overlay และผลตรวจทุกครั้งอัตโนมัติ
+### 🤖 1. AI & Computer Vision (ระบบตรวจสอบพระเครื่องอัจฉริยะ)
+- **YOLOv8 Object Detection:** ใช้ AI ตรวจจับพระเครื่องในภาพอัตโนมัติ เพื่อคัดกรองพิมพ์พระและตรวจสอบความมั่นใจ (Confidence Score) ก่อนเทียบตำหนิ
+- **Advanced Verification:** ผสมผสาน 3 อัลกอริทึมในการเทียบภาพ:
+  1. **Contour & Chamfer Distance:** เทียบโครงร่างและขอบภาพ
+  2. **SSIM (Structural Similarity Index):** เทียบความคล้ายคลึงของพื้นผิว
+  3. **ORB Feature Matching:** เทียบจุดเด่นเฉพาะ (Keypoints) บนองค์พระ
+- **Auto-Overlay & Debug View:** วาดจุด P* Points และแสดงผลลัพธ์การเทียบภาพให้ผู้ใช้ดูได้ทันที
 
-## โครงสร้างไฟล์
-- `app.py` : โปรแกรมหลัก
-- `requirements.txt` : package ที่ต้องติดตั้ง
-- `outputs/overlays/` : เก็บภาพผลลัพธ์
-- `outputs/logs/inspection_log.csv` : เก็บผลตรวจทั้งหมด
+### 🛒 2. E-Commerce & Role-Based System (ระบบตลาดและสมาชิก)
+- **ระบบ Role-Based Access Control:** แบ่งผู้ใช้งานเป็น 3 ระดับ (ผู้ซื้อ, ผู้ขาย, แอดมิน)
+  - **Buyer (ผู้ซื้อ):** เลือกชมตลาด, กดซื้อพระเครื่อง, ดูประวัติการสั่งซื้อและสถานะการจัดส่ง
+  - **Seller (ผู้ขาย):** อัปโหลดภาพตรวจ AI, ลงขายพระเครื่องในตลาด, จัดการออเดอร์และอัปเดตสถานะการจัดส่งให้ลูกค้า
+  - **Admin (แอดมิน):** จัดการแบน/ลบผู้ใช้, ดูภาพรวมออเดอร์ทั้งหมดในระบบ, ลบโพสต์พระเครื่อง, และโหลดรายงานสรุปยอดขาย
 
-## การติดตั้ง
-```bash
-pip install -r requirements.txt
-```
+### ☁️️ 3. Cloud & Database Architecture
+- **PostgreSQL Database:** ระบบฐานข้อมูลแบบ Relational สำหรับจัดการ Users, Amulets, Orders และ History
+- **Cloudinary Integration:** อัปโหลดภาพและรูปผลลัพธ์การตรวจ (Overlay) ขึ้น Cloud Storage อัตโนมัติ เพื่อประหยัดพื้นที่เซิร์ฟเวอร์
+- **Data Export:** ระบบสร้างไฟล์ CSV รายงานสรุปยอดขายรายวันสำหรับแอดมิน
 
-## การรัน
-```bash
-python app.py
-```
-จากนั้นเปิดเบราว์เซอร์ที่:
-- บนเครื่องเดียวกัน: `http://127.0.0.1:7860`
-- บนมือถือใน Wi-Fi เดียวกัน: `http://<IP-เครื่องอาจารย์>:7860`
+### 🎨 4. Modern UI/UX
+- รองรับ **Dark Mode / Light Mode** อัตโนมัติและจดจำการตั้งค่าผู้ใช้
+- Responsive Design รองรับการใช้งานบนหน้าจอมือถือและเดสก์ท็อป
+- ระบบจัดการหน้าต่างแบบ Modals ตลอดทั้งแอปพลิเคชัน
 
-## วิธีใช้ในห้องเรียน
-1. กรอก `Amulet ID` เช่น `AMU-001`
-2. อัปโหลดภาพ REF
-3. อัปโหลดภาพ Candidate
-4. กด `Inspect`
-5. ดูผล Score, Decision, และภาพ Overlay
+---
 
-## คำแนะนำเรื่องรหัสพระ (Amulet ID)
-แนะนำให้ใช้รหัสที่อ่านง่ายและไม่ซ้ำ เช่น
-- `AMU-001`, `AMU-002`
-- `SMDJ-2401`, `SMDJ-2402`
-- `REF-A`, `TEST-001`
+## 📂 โครงสร้างไฟล์หลัก
+- `app.py` : Backend เขียนด้วย FastAPI (Python)
+- `static/index.html` : หน้า UI หลักของแอปพลิเคชัน
+- `static/main.js` : ไฟล์ควบคุม Logic ฝั่ง Client-side (Frontend)
+- `static/style.css` : สไตล์ชีทและการจัดรูปแบบหน้าจอ
+- `models/best.pt` : โมเดลน้ำหนัก (Weights) ของ YOLO 
+- `requirements.txt` : รายการ Library ที่จำเป็นต้องติดตั้ง
 
-ถ้าไม่กรอก ระบบจะสร้างรหัสอัตโนมัติในรูปแบบ `AUTO-YYYYMMDD-HHMMSS`
+---
 
-## รูปแบบข้อมูลใน CSV
-ไฟล์ `inspection_log.csv` จะมีคอลัมน์หลักดังนี้
-- `timestamp`
-- `amulet_id`
-- `score_px`
-- `decision`
-- `threshold_px`
-- `num_pstar`
-- `scoring_method`
-- `overlay_path`
+## ⚙️ การตั้งค่าและการติดตั้ง (Setup & Installation)
 
-## หมายเหตุ
-- เวอร์ชันนี้เหมาะกับงานสอนและเดโมในห้องเรียน
-- ถ้ามุมภาพต่างกันมากหรือพื้นหลังรบกวนมาก ผลอาจคลาดเคลื่อน
-- หากต้องการความแม่นยำสูงขึ้นในอนาคต ควรเพิ่ม registration ที่ละเอียดขึ้น และเพิ่มคุณลักษณะอื่นร่วมกับ contour
-
-
-## New in this version
-- Search box for **Amulet ID** on the History section
-- **Inspection Thumbnails** gallery showing recent overlay results
-- Search works with full or partial ID, for example `AMU-001` or `SMDJ`
-- Refresh and Clear History still update the table, thumbnails, and CSV together
+1. **ติดตั้ง Python Libraries:**
+   ```bash
+   pip install -r requirements.txt

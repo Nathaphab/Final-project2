@@ -76,20 +76,16 @@ const checkLoginStatus = () => {
         if(navAuth) {
             let orderBtnHTML = '';
             
-            // ✨ แยกสิทธิ์การเห็นปุ่มให้ชัดเจน ✨
             if (user.role === 'seller') {
-                // ผู้ขาย: เห็นทั้งปุ่ม "ออเดอร์ลูกค้า" (ของตัวเอง) และ "ประวัติการสั่งซื้อ"
                 orderBtnHTML = `
                     <button class="btn-primary" style="margin: 0 5px; background-color: #f59e0b;" onclick="openSellerOrders()">📦 ออเดอร์ลูกค้า</button>
                     <button class="btn-primary" style="margin: 0 5px; background-color: #3b82f6;" onclick="openBuyerOrders()">🛒 ประวัติการสั่งซื้อ</button>
                 `;
             } else if (user.role === 'admin' || user.username === 'admin') {
-                // แอดมิน: เห็นแค่ปุ่ม "ประวัติการสั่งซื้อ" เอาไว้ดูภาพรวมของทุกคนในระบบ
                 orderBtnHTML = `
                     <button class="btn-primary" style="margin: 0 5px; background-color: #3b82f6;" onclick="openBuyerOrders()">🛒 ประวัติการสั่งซื้อ</button>
                 `;
             } else if (user.role === 'buyer') {
-                // ผู้ซื้อ: เห็นแค่ปุ่ม "ประวัติการสั่งซื้อ" (ของตัวเอง)
                 orderBtnHTML = `<button class="btn-primary" style="margin: 0 10px; background-color: #3b82f6;" onclick="openBuyerOrders()">🛒 ประวัติการสั่งซื้อ</button>`;
             }
                 
@@ -139,6 +135,12 @@ window.submitRegister = async () => {
 
     if (!u || !e || !p) return alert("กรุณากรอกข้อมูลให้ครบถ้วน");
 
+    // ✨ ปรับปุ่มให้หมุนโหลดระหว่างส่งอีเมล
+    const btn = document.getElementById('btn-submit-reg');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = 'กำลังประมวลผลและส่งอีเมล...';
+    btn.disabled = true;
+
     try {
         const res = await fetch('/api/register', {
             method: 'POST',
@@ -149,15 +151,16 @@ window.submitRegister = async () => {
         alert(data.message);
         if (data.success) {
             closeModal('register-modal');
-            openModal('login-modal');
         }
     } catch (err) {
         alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
     }
 };
 
 window.submitLogin = async () => {
-    // ✨ ดึงค่าจากช่องอีเมลแทนช่องชื่อ
     const e = document.getElementById('log-email').value.trim();
     const p = document.getElementById('log-password').value.trim();
 
@@ -167,7 +170,7 @@ window.submitLogin = async () => {
         const res = await fetch('/api/login', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({email: e, password: p}) // ส่งอีเมลไปหลังบ้าน
+            body: JSON.stringify({email: e, password: p})
         });
         const data = await res.json();
         
@@ -184,6 +187,71 @@ window.submitLogin = async () => {
         }
     } catch (err) {
         alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+    }
+};
+
+// ================= ✨ ฟังก์ชันลืมรหัสผ่าน & ตั้งรหัสผ่านใหม่ ✨ =================
+window.submitForgotPassword = async () => {
+    const email = document.getElementById('forgot-email').value.trim();
+    if (!email) return alert("กรุณากรอกอีเมลที่ใช้สมัครสมาชิก");
+
+    const btn = document.getElementById('btn-submit-forgot');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = 'กำลังส่งลิงก์ไปยังอีเมล...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/forgot-password', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email: email})
+        });
+        const data = await res.json();
+        alert(data.message);
+        
+        if (data.success) {
+            closeModal('forgot-modal');
+        }
+    } catch (err) {
+        alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+};
+
+window.submitResetPassword = async () => {
+    const token = document.getElementById('reset-token-value').value;
+    const newPassword = document.getElementById('reset-new-password').value.trim();
+    const confirmPassword = document.getElementById('reset-confirm-password').value.trim();
+
+    if (!newPassword || !confirmPassword) return alert("กรุณากรอกรหัสผ่านให้ครบทั้ง 2 ช่อง");
+    if (newPassword !== confirmPassword) return alert("รหัสผ่านใหม่ทั้ง 2 ช่องไม่ตรงกัน");
+    if (newPassword.length < 6) return alert("รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร");
+
+    const btn = document.getElementById('btn-submit-reset');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = 'กำลังบันทึกรหัสผ่านใหม่...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/reset-password', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({token: token, new_password: newPassword})
+        });
+        const data = await res.json();
+        alert(data.message);
+        
+        if (data.success) {
+            closeModal('reset-modal');
+            openModal('login-modal');
+        }
+    } catch (err) {
+        alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
     }
 };
 
@@ -242,7 +310,6 @@ window.fetchUsersList = async () => {
                     <td style="padding: 10px; text-align: center;">
                         ${u.username === 'admin' 
                             ? '<span style="color: #aaa;">-</span>' 
-                            // ✨ แก้ไขตรงนี้: ใส่เครื่องหมายคำพูดครอบ '${u.id}' ป้องกันโค้ดพัง
                             : `<button class="btn-text text-danger" style="padding: 2px 5px;" onclick="deleteUser('${u.id}', '${u.username}')"><i class="fa-solid fa-trash"></i> ลบ</button>`
                         }
                     </td>
@@ -259,7 +326,6 @@ window.fetchUsersList = async () => {
 };
 
 window.deleteUser = async (userId, username) => {
-    // ✨ ดักจับตรงนี้! ถ้า ID พัง มันจะเด้งเตือนเราทันที
     if (!userId || userId === 'undefined') {
         alert("❌ ระบบหา ID ไม่เจอ!\n(แสดงว่าหลังบ้านยังเป็นโค้ดเก่าอยู่ หรือลืมรีสตาร์ทเซิร์ฟเวอร์จอดำครับ)");
         return;
@@ -270,7 +336,6 @@ window.deleteUser = async (userId, username) => {
             const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
             
             if (response.ok) {
-                // โหลดตารางใหม่เงียบๆ โดยไม่รีเฟรชหน้าเว็บ
                 if (typeof window.fetchUsersList === 'function') {
                     window.fetchUsersList(); 
                 }
@@ -293,7 +358,7 @@ window.markAsSold = async (id) => {
         const res = await fetch(`/api/amulets/${id}/sold`, { method: 'POST' });
         const data = await res.json();
         if(data.success) {
-            fetchMarketplace(); // โหลดตลาดใหม่เพื่อโชว์ป้าย SOLD
+            fetchMarketplace(); 
         } else {
             alert("เกิดข้อผิดพลาด: " + data.message);
         }
@@ -332,13 +397,11 @@ window.fetchMarketplace = async () => {
                 const isSold = amulet.status === 'sold'; 
                 
                 let actionButtons = '';
-                // ✨ อัปเดตให้รูปภาพทั้งหมด สามารถชี้แล้วเด้ง (hover) และคลิกได้
                 let imageStyle = "width: 100%; height: 200px; object-fit: cover; border-radius: 8px; cursor: pointer; transition: transform 0.2s;";
                 let soldStamp = "";
                 
                 if (isSold) {
                     imageStyle += " filter: grayscale(100%); opacity: 0.6;";
-                    // ✨ เพิ่ม pointer-events: none; ให้ป้าย SOLD เพื่อให้คลิกทะลุไปโดนรูปภาพได้
                     soldStamp = `<div style="position: absolute; top: 35%; left: 50%; transform: translate(-50%, -50%) rotate(-15deg); background: rgba(220, 38, 38, 0.9); color: white; padding: 10px 25px; font-size: 2rem; font-weight: 900; border: 4px solid white; border-radius: 10px; z-index: 10; letter-spacing: 2px; pointer-events: none;">SOLD</div>`;
                     
                     if (isAdmin || isOwner) {
@@ -349,7 +412,7 @@ window.fetchMarketplace = async () => {
                 } else {
                     let buyBtnHTML = '';
                     if (user && !isOwner) { 
-                        buyBtnHTML = `<button style="padding: 5px 10px; font-size: 0.8rem; background-color: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;" onclick="markAsSold(${amulet.id})">🛒 ซื้อเลย</button>`;buyBtnHTML = `<button style="padding: 5px 10px; font-size: 0.8rem; background-color: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;" onclick="openOrderModal(${amulet.id}, ${amulet.price})">🛒 ซื้อเลย</button>`;
+                        buyBtnHTML = `<button style="padding: 5px 10px; font-size: 0.8rem; background-color: #10b981; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;" onclick="openOrderModal(${amulet.id}, ${amulet.price})">🛒 ซื้อเลย</button>`;
                     } else if (user && isOwner) { 
                         buyBtnHTML = `<button style="padding: 5px 10px; font-size: 0.8rem; background-color: #f59e0b; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px;" onclick="markAsSold(${amulet.id})">ปิดการขาย</button>`;
                     }
@@ -368,7 +431,6 @@ window.fetchMarketplace = async () => {
                     `;
                 }
 
-                // ✨ ปลดล็อก onclick ให้ทำงานกับทุกรูปภาพ
                 card.innerHTML = `
                     ${soldStamp}
                     <img src="${amulet.image_path}" alt="${amulet.name}" 
@@ -406,7 +468,6 @@ window.fetchMarketplace = async () => {
 };
 
 window.submitAddAmulet = async () => {
-    // 1. ค้นหาปุ่มกดที่อยู่ในหน้าต่างลงขาย (สมมติว่าเป็นคลาส btn-primary)
     const submitBtn = document.querySelector('#add-amulet-modal .btn-primary');
     const originalText = submitBtn ? submitBtn.innerHTML : 'โพสต์ขาย';
 
@@ -430,7 +491,6 @@ window.submitAddAmulet = async () => {
         const sellerId = user.id || user.user_id; 
         if (!sellerId) return alert('ไม่พบข้อมูล ID ของผู้ขาย กรุณาล็อกอินใหม่อีกครั้งครับ');
 
-        // ✨ [เพิ่มใหม่] เปลี่ยนสถานะปุ่มตอนกำลังโหลดรูปภาพ
         if (submitBtn) {
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<span class="spinner"></span> กำลังโพสต์...';
@@ -450,7 +510,7 @@ window.submitAddAmulet = async () => {
         const res = await fetch('/api/amulets/add', { method: 'POST', body: formData });
         
         if (!res.ok) {
-            if (submitBtn) submitBtn.disabled = false; // คืนค่าปุ่มถ้า error
+            if (submitBtn) submitBtn.disabled = false; 
             return alert("ระบบหลังบ้านปฏิเสธการรับข้อมูล");
         }
 
@@ -465,7 +525,6 @@ window.submitAddAmulet = async () => {
         console.error("JavaScript Error:", err);
         alert("เกิดข้อผิดพลาดในการทำงานของหน้าเว็บครับ");
     } finally {
-        // ✨ [เพิ่มใหม่] คืนค่าหน้าตาปุ่มกลับเป็นปกติเมื่อทำงานเสร็จสิ้น
         if (submitBtn) {
             submitBtn.disabled = false;
             submitBtn.innerHTML = originalText;
@@ -478,11 +537,9 @@ window.submitAddAmulet = async () => {
 window.deleteAmulet = async (amuletId) => {
     if (!confirm('แน่ใจหรือไม่ว่าต้องการลบพระเครื่องรายการนี้ออกจากตลาด?')) return;
     try {
-        // ✨ ดึงข้อมูลผู้ใช้งานปัจจุบันเพื่อเอาค่า role ส่งไปให้หลังบ้านตรวจสอบ
         const user = getSafeUser();
         const userRole = user ? user.role : '';
 
-        // ✨ แนบ ?role=${userRole} ไปกับ URL ด้วย
         const res = await fetch(`/api/amulets/${amuletId}?role=${userRole}`, { method: 'DELETE' });
         const data = await res.json();
         
@@ -536,17 +593,39 @@ window.showContactInfo = (sellerName, contactData) => {
 // ================= Core System Initializer (ทำงานเมื่อเปิดเว็บ) =================
 document.addEventListener('DOMContentLoaded', () => {
     
+    // ✨ [เพิ่มใหม่] ตรวจสอบ URL Parameter ว่าคลิกมาจากอีเมลหรือไม่
+    const urlParams = new URLSearchParams(window.location.search);
+    const verifyToken = urlParams.get('verify');
+    const resetToken = urlParams.get('reset');
+
+    if (verifyToken) {
+        // ถ้ายืนยันอีเมล ให้ยิง API ไปยืนยัน
+        fetch(`/api/verify-email?token=${verifyToken}`)
+            .then(res => res.json())
+            .then(data => {
+                alert(data.message);
+                window.history.replaceState({}, document.title, "/"); // ล้างลิงก์ URL ทิ้ง
+                if (data.success) {
+                    openModal('login-modal'); // ถ้าสำเร็จ เปิดหน้าล็อกอินให้
+                }
+            })
+            .catch(err => console.error(err));
+    } else if (resetToken) {
+        // ถ้าคลิกลิงก์รีเซ็ตรหัสผ่าน ให้เปิดหน้าต่างใหม่ แล้วซ่อน Token ไว้
+        document.getElementById('reset-token-value').value = resetToken;
+        openModal('reset-modal');
+        window.history.replaceState({}, document.title, "/"); // ล้างลิงก์ URL ทิ้ง ป้องกันการรีเฟรช
+    }
+
     checkLoginStatus(); 
     if(window.fetchMarketplace) window.fetchMarketplace();
 
-    // อัปเดตไอคอนธีม
     const savedTheme = localStorage.getItem('theme');
     const icon = document.getElementById('theme-icon');
     if (icon) {
         icon.className = savedTheme === 'light' ? 'fa-solid fa-moon' : 'fa-solid fa-sun';
     }
 
-    // ================= ส่วนของการตรวจสอบภาพอ้างอิง =================
     const amuletIdInput = document.getElementById('amulet-id');
     const btnGenId = document.getElementById('btn-gen-id');
     const btnInspect = document.getElementById('btn-inspect');
@@ -957,7 +1036,6 @@ document.addEventListener('DOMContentLoaded', () => {
     generateRandomId();
     fetchHistory();
 
-    // ================= บังคับสีให้ตาราง PASS / FAIL =================
     const forceStatusColors = () => {
         const cells = document.querySelectorAll('#table-history td, .stat-value');
         cells.forEach(td => {
@@ -1012,13 +1090,11 @@ function closeOrderModal() {
 async function submitOrder(e) {
     e.preventDefault();
     
-    // ✨ ดึงข้อมูลผู้ซื้อที่ล็อกอินอยู่จริงๆ
     const user = getSafeUser();
     if (!user) {
         alert('กรุณาล็อกอินก่อนทำการสั่งซื้อครับ');
         return;
     }
-    // ใช้ ID ของผู้ใช้งานคนนั้น
     const buyerId = user.id || user.user_id; 
 
     const orderData = {
@@ -1042,7 +1118,7 @@ async function submitOrder(e) {
         if (result.success) {
             alert('สั่งซื้อสำเร็จ! รอผู้ขายจัดส่ง');
             closeOrderModal();
-            location.reload(); // รีเฟรชหน้าเพื่ออัปเดตสถานะเป็น "ขายแล้ว"
+            location.reload(); 
         } else {
             alert('เกิดข้อผิดพลาด: ' + result.message);
         }
@@ -1055,7 +1131,6 @@ async function submitOrder(e) {
 // ================= ฟังก์ชันช่วยแปลงเวลา UTC เป็นเวลาไทย =================
 const formatThaiTime = (utcStr) => {
     if (!utcStr) return '-';
-    // บังคับให้ JS รู้ว่าเป็นเวลาสากล (UTC) โดยเติม Z ต่อท้าย
     const d = new Date(utcStr + (utcStr.includes('Z') ? '' : 'Z'));
     if (isNaN(d.getTime())) return utcStr.replace('T', ' ').split('.')[0]; 
     
@@ -1153,7 +1228,6 @@ window.updateOrderStatus = async (orderId, newStatus) => {
 window.openBuyerOrders = () => {
     openModal('buyerOrdersModal');
     
-    // ✨ เช็กว่าเป็นแอดมินหรือไม่ เพื่อเปลี่ยนหัวข้อ Modal ให้ตรงกับบริบท
     const user = getSafeUser();
     const modalTitle = document.querySelector('#buyerOrdersModal h2');
     if (user && (user.role === 'admin' || user.username === 'admin')) {
@@ -1171,12 +1245,11 @@ window.fetchBuyerOrders = async () => {
     if (!user) return;
     
     const buyerId = user.id || user.user_id;
-    const isAdmin = user.role === 'admin' || user.username === 'admin'; // ✨ เช็กสิทธิ์
+    const isAdmin = user.role === 'admin' || user.username === 'admin'; 
     
     container.innerHTML = '<p style="text-align: center; color: var(--color-text-muted);">กำลังโหลดข้อมูล...</p>';
     
     try {
-        // ✨ แอดมินดึงออเดอร์ทั้งหมด (ใช้ /api/orders) ส่วนผู้ซื้อดึงเฉพาะของตัวเอง
         const apiPath = isAdmin ? '/api/orders' : `/api/orders/buyer/${buyerId}`;
         const response = await fetch(apiPath);
         const data = await response.json();
@@ -1188,7 +1261,7 @@ window.fetchBuyerOrders = async () => {
                         <tr style="border-bottom: 2px solid var(--color-border);">
                             <th style="padding: 10px; color: var(--color-text);">วันที่สั่งซื้อ</th>
                             <th style="padding: 10px; color: var(--color-text);">ชื่อพระเครื่อง</th>
-                            ${isAdmin ? '<th style="padding: 10px; color: var(--color-text);">ชื่อลูกค้า</th>' : ''} <!-- ✨ แสดงคอลัมน์ชื่อลูกค้าเฉพาะแอดมิน -->
+                            ${isAdmin ? '<th style="padding: 10px; color: var(--color-text);">ชื่อลูกค้า</th>' : ''} 
                             <th style="padding: 10px; color: var(--color-text);">ยอดสุทธิ</th>
                             <th style="padding: 10px; color: var(--color-text);">สถานะการจัดส่ง</th>
                         </tr>
@@ -1210,7 +1283,7 @@ window.fetchBuyerOrders = async () => {
                     <tr style="border-bottom: 1px solid var(--color-border);">
                         <td style="padding: 10px; color: var(--color-text-muted);">${formatThaiTime(o.created_at)}</td>
                         <td style="padding: 10px; font-weight: bold; color: var(--color-text);">${o.amulet_name || 'พระเครื่อง'}</td>
-                        ${isAdmin ? `<td style="padding: 10px; color: var(--color-text);">${o.buyer_name || '-'}</td>` : ''} <!-- ✨ ดึงข้อมูลชื่อลูกค้ามาโชว์ -->
+                        ${isAdmin ? `<td style="padding: 10px; color: var(--color-text);">${o.buyer_name || '-'}</td>` : ''}
                         <td style="padding: 10px; color: #d97706; font-weight: bold;">฿${Number(o.price || o.total_amount || 0).toLocaleString()}</td>
                         <td style="padding: 10px;">${statusHtml}</td>
                     </tr>
@@ -1223,6 +1296,6 @@ window.fetchBuyerOrders = async () => {
             container.innerHTML = '<p style="text-align: center; color: var(--color-text-muted); padding: 20px;">ยังไม่มีประวัติการสั่งซื้อครับ</p>';
         }
     } catch (err) {
-        container.innerHTML = '<p style="text-align: center; color: #ef4444;">โหลดข้อมูลล้มเหลว (สำหรับแอดมิน: กรุณาตรวจสอบว่ามี API /api/orders สำหรับดึงออเดอร์ทั้งหมดแล้ว)</p>';
+        container.innerHTML = '<p style="text-align: center; color: #ef4444;">โหลดข้อมูลล้มเหลว</p>';
     }
 };

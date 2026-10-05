@@ -3,3 +3,6 @@ __pycache__/
 .gradio/
 outputs/
 scratch/
+system.db
+*.csv
+ngrok.exe
