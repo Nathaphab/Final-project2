@@ -11,7 +11,7 @@ import uvicorn
 from ultralytics import YOLO
 from PIL import Image, ImageDraw, ImageFont
 import shutil
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import hashlib
 import pandas as pd
 from scipy import ndimage
@@ -1080,7 +1080,7 @@ def api_daily_sales_report():
         conn.close()
         if df.empty:
             return JSONResponse(status_code=404, content={"message": "ยังไม่มีประวัติการขายในระบบ"})
-        df['sold_date'] = pd.to_datetime(df['sold_date']) + pd.Timedelta(hours=7)
+        df['sold_date'] = pd.to_datetime(df['sold_date'])
         df['วันที่ขาย'] = df['sold_date'].dt.date
         df.rename(columns={'username': 'ชื่อผู้ขาย', 'name': 'ชื่อพระเครื่อง', 'price': 'ราคาที่ขายได้ (บาท)'}, inplace=True)
         df = df[['วันที่ขาย', 'ชื่อผู้ขาย', 'ชื่อพระเครื่อง', 'ราคาที่ขายได้ (บาท)']]
@@ -1096,10 +1096,15 @@ def api_create_order(order: OrderCreate):
     try:
         conn = get_db_connection()
         c = conn.cursor()
+        
+        # บันทึกเวลาลงฐานข้อมูล (เก็บเป็น ปี-เดือน-วัน เวลา ตามมาตรฐาน DB)
+        local_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
         c.execute('''INSERT INTO orders 
-                     (amulet_id, buyer_id, buyer_name, buyer_phone, buyer_address, total_amount, status) 
-                     VALUES (%s, %s, %s, %s, %s, %s, 'pending')''',
-                  (order.amulet_id, order.buyer_id, order.buyer_name, order.buyer_phone, order.buyer_address, order.total_amount))
+                     (amulet_id, buyer_id, buyer_name, buyer_phone, buyer_address, total_amount, status, created_at) 
+                     VALUES (%s, %s, %s, %s, %s, %s, 'pending', %s)''',
+                  (order.amulet_id, order.buyer_id, order.buyer_name, order.buyer_phone, order.buyer_address, order.total_amount, local_time))
+        
         c.execute("UPDATE amulets SET status = 'sold' WHERE id = %s", (order.amulet_id,))
         conn.commit()
         conn.close()
@@ -1123,6 +1128,15 @@ def api_get_seller_orders(seller_id: int):
         conn.close()
         orders = []
         for r in rows:
+            # แปลงและจัดฟอร์แมตให้แสดงเป็น วัน-เดือน-ปี (DD-MM-YYYY) โดยตัดเวลาทิ้ง
+            dt_val = r[7]
+            if isinstance(dt_val, datetime):
+                dt_str = dt_val.strftime('%d-%m-%Y')
+            else:
+                date_part = str(dt_val)[:10]
+                parts = date_part.split('-')
+                dt_str = f"{parts[2]}-{parts[1]}-{parts[0]}" if len(parts) == 3 else date_part
+            
             orders.append({
                 "order_id": r[0],
                 "amulet_name": r[1],
@@ -1131,7 +1145,7 @@ def api_get_seller_orders(seller_id: int):
                 "buyer_phone": r[4],
                 "buyer_address": r[5],
                 "status": r[6],
-                "created_at": r[7],
+                "created_at": dt_str,
                 "amulet_id": r[8]
             })
         return {"success": True, "orders": orders}
@@ -1167,8 +1181,19 @@ def api_get_buyer_orders(buyer_id: int):
         
         orders = []
         for r in rows:
+            # แปลงและจัดฟอร์แมตให้แสดงเป็น วัน-เดือน-ปี (DD-MM-YYYY) โดยตัดเวลาทิ้ง
+            dt_val = r[0]
+            if isinstance(dt_val, datetime):
+                dt_str = dt_val.strftime('%d-%m-%Y')
+            elif dt_val:
+                date_part = str(dt_val)[:10]
+                parts = date_part.split('-')
+                dt_str = f"{parts[2]}-{parts[1]}-{parts[0]}" if len(parts) == 3 else date_part
+            else:
+                dt_str = "-"
+            
             orders.append({
-                "created_at": str(r[0]) if r[0] else "-",
+                "created_at": dt_str,
                 "amulet_name": r[1] if r[1] else "พระเครื่อง",
                 "price": r[2],
                 "status": r[3]
@@ -1193,8 +1218,19 @@ def api_get_all_orders():
         
         orders = []
         for r in rows:
+            # แปลงและจัดฟอร์แมตให้แสดงเป็น วัน-เดือน-ปี (DD-MM-YYYY) โดยตัดเวลาทิ้ง
+            dt_val = r[0]
+            if isinstance(dt_val, datetime):
+                dt_str = dt_val.strftime('%d-%m-%Y')
+            elif dt_val:
+                date_part = str(dt_val)[:10]
+                parts = date_part.split('-')
+                dt_str = f"{parts[2]}-{parts[1]}-{parts[0]}" if len(parts) == 3 else date_part
+            else:
+                dt_str = "-"
+            
             orders.append({
-                "created_at": str(r[0]) if r[0] else "-",
+                "created_at": dt_str,
                 "amulet_name": r[1] if r[1] else "พระเครื่อง",
                 "buyer_name": r[2] if r[2] else "-",
                 "price": r[3],

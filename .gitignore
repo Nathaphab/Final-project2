@@ -6,3 +6,5 @@ scratch/
 system.db
 *.csv
 ngrok.exe
+clean_db.py
+delete_old_order.py

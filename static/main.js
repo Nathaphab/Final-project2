@@ -1177,7 +1177,7 @@ window.fetchSellerOrders = async () => {
                 
                 html += `
                     <tr style="border-bottom: 1px solid var(--color-border);">
-                        <td style="padding: 10px; color: var(--color-text);">${formatThaiTime(o.created_at)}</td>
+                        <td style="padding: 10px; color: var(--color-text);">${o.created_at}</td>
                         <td style="padding: 10px; font-weight: bold; color: var(--color-text);">${o.amulet_name}</td>
                         <td style="padding: 10px; color: var(--color-text);">${o.buyer_name}<br><span style="color: var(--color-text-muted);"><i class="fa-solid fa-phone"></i> ${o.buyer_phone}</span></td>
                         <td style="padding: 10px; max-width: 250px; line-height: 1.4; color: var(--color-text);">${o.buyer_address}</td>
@@ -1281,7 +1281,7 @@ window.fetchBuyerOrders = async () => {
 
                 html += `
                     <tr style="border-bottom: 1px solid var(--color-border);">
-                        <td style="padding: 10px; color: var(--color-text-muted);">${formatThaiTime(o.created_at)}</td>
+                        <td style="padding: 10px; color: var(--color-text-muted);">${o.created_at}</td>
                         <td style="padding: 10px; font-weight: bold; color: var(--color-text);">${o.amulet_name || 'พระเครื่อง'}</td>
                         ${isAdmin ? `<td style="padding: 10px; color: var(--color-text);">${o.buyer_name || '-'}</td>` : ''}
                         <td style="padding: 10px; color: #d97706; font-weight: bold;">฿${Number(o.price || o.total_amount || 0).toLocaleString()}</td>
