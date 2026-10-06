@@ -18,8 +18,8 @@
   - **Seller (ผู้ขาย):** อัปโหลดภาพตรวจ AI, ลงขายพระเครื่องในตลาด, จัดการออเดอร์และอัปเดตสถานะการจัดส่งให้ลูกค้า
   - **Admin (แอดมิน):** จัดการแบน/ลบผู้ใช้, ดูภาพรวมออเดอร์ทั้งหมดในระบบ, ลบโพสต์พระเครื่อง, และโหลดรายงานสรุปยอดขาย
 
-### ☁️️ 3. Cloud & Database Architecture
-- **PostgreSQL Database:** ระบบฐานข้อมูลแบบ Relational สำหรับจัดการ Users, Amulets, Orders และ History
+### ☁ 3. Cloud & Database Architecture
+- **Local PostgreSQL Database:** ระบบฐานข้อมูลแบบ Relational รันบนเครื่อง (Localhost) สำหรับจัดการ Users, Amulets, Orders และ History
 - **Cloudinary Integration:** อัปโหลดภาพและรูปผลลัพธ์การตรวจ (Overlay) ขึ้น Cloud Storage อัตโนมัติ เพื่อประหยัดพื้นที่เซิร์ฟเวอร์
 - **Data Export:** ระบบสร้างไฟล์ CSV รายงานสรุปยอดขายรายวันสำหรับแอดมิน
 
@@ -31,7 +31,9 @@
 ---
 
 ## 📂 โครงสร้างไฟล์หลัก
-- `app.py` : Backend เขียนด้วย FastAPI (Python)
+- `app.py` : Backend API หลักของระบบ (Python)
+- `clean_db.py` : สคริปต์สำหรับเคลียร์และรีเซ็ตข้อมูลในตารางฐานข้อมูล
+- `.env` : ไฟล์สำหรับตั้งค่าสภาพแวดล้อม เช่น การเชื่อมต่อฐานข้อมูลและ API Keys (ถูกซ่อนไว้เพื่อความปลอดภัยและไม่อัปขึ้น GitHub)
 - `static/index.html` : หน้า UI หลักของแอปพลิเคชัน
 - `static/main.js` : ไฟล์ควบคุม Logic ฝั่ง Client-side (Frontend)
 - `static/style.css` : สไตล์ชีทและการจัดรูปแบบหน้าจอ
@@ -40,7 +42,7 @@
 
 ---
 
-## ⚙️ การตั้งค่าและการติดตั้ง (Setup & Installation)
+## ⚙️ การตั้งค่าและการใช้งาน (Setup & Run)
 
 1. **ติดตั้ง Python Libraries:**
    ```bash
