@@ -1365,7 +1365,7 @@ html[data-theme="light"] .app-header,
 html[data-theme="light"] .card,
 html[data-theme="light"] .auth-modal-content,
 html[data-theme="light"] .history-section {
-    background-color: #ffffff !important;
+    background: #ffffff !important; /* เปลี่ยนมาใช้คำว่า background เพื่อล้าง Gradient */
     border: 1px solid #e5e7eb !important;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
 }
@@ -1380,6 +1380,7 @@ html[data-theme="light"] .btn-text,
 html[data-theme="light"] th, 
 html[data-theme="light"] td,
 html[data-theme="light"] .stat-label,
+html[data-theme="light"] .nav-logo,
 html[data-theme="light"] .nav-logo span,
 html[data-theme="light"] .upload-box-title span:not(.badge) {
     color: #1f2937 !important;
@@ -1428,6 +1429,39 @@ html[data-theme="light"] #btn-inspect i {
 html[data-theme="light"] .tab-btn.active {
     background-color: #ffffff !important;
     border-bottom: 2px solid #3b82f6 !important; /* เส้นใต้สีฟ้า */
+}
+
+/* 10. ยกเลิกเอฟเฟกต์และบังคับสีโลโก้ทั้งหมด (ทั้ง Navbar และ Header) ให้เป็นสีเข้ม */
+html[data-theme="light"] .brand-text h1,
+html[data-theme="light"] .brand-text p,
+html[data-theme="light"] .nav-logo,
+html[data-theme="light"] .nav-logo * {
+    background: none !important;
+    -webkit-text-fill-color: #1f2937 !important;
+    color: #1f2937 !important;
+}
+
+/* 11. แก้ไขแถบสถานะระบบ (System Status) และ โลโก้ Navbar ขั้นเด็ดขาด */
+html[data-theme="light"] .system-status {
+    color: #1f2937 !important;
+    background-color: #f3f4f6 !important;
+    border-color: #d1d5db !important;
+}
+
+/* 12. ไม้ตายสุดท้าย (ฉบับสมบูรณ์): ตัวหนังสือดำ แต่คืนชีพสีทองให้ไอคอนเพชร */
+html[data-theme="light"] .top-navbar > :first-child,
+html[data-theme="light"] .top-navbar > :first-child span,
+html[data-theme="light"] .top-navbar > :first-child h1,
+html[data-theme="light"] .top-navbar > :first-child p {
+    color: #1f2937 !important;
+    -webkit-text-fill-color: #1f2937 !important;
+    background: none !important;
+}
+
+html[data-theme="light"] .top-navbar > :first-child i,
+html[data-theme="light"] .top-navbar > :first-child svg {
+    color: var(--gold-primary) !important;
+    -webkit-text-fill-color: var(--gold-primary) !important;
 }
 
 /* ================= Order Modal Styles ================= */
