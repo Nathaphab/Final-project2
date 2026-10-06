@@ -13,7 +13,7 @@
 - **Auto-Overlay & Debug View:** วาดจุด P* Points และสร้างภาพผลลัพธ์การเปรียบเทียบ (Overlay) ให้ผู้ใช้ดูได้ทันที
 
 ### 🛒 2. E-Commerce & Role-Based System (ระบบตลาดและสมาชิก)
-- **Secure Authentication:** ระบบสมัคสมาชิกพร้อมการยืนยันตัวตนผ่านอีเมล (Email Verification) และระบบลืม/รีเซ็ตรหัสผ่าน (Forgot Password) ที่ปลอดภัย
+- **Secure Authentication:** ระบบสมัครสมาชิกพร้อมการยืนยันตัวตนผ่านอีเมล (Email Verification) และระบบลืม/รีเซ็ตรหัสผ่าน (Forgot Password) ที่ปลอดภัย
 - **Role-Based Access Control:** แบ่งผู้ใช้งานเป็น 3 ระดับ:
   - **Buyer (ผู้ซื้อ):** เลือกชมตลาด, กดซื้อพระเครื่อง, ดูประวัติการสั่งซื้อและสถานะการจัดส่ง
   - **Seller (ผู้ขาย):** ใช้ AI ตรวจสอบพระ, ลงขายพระเครื่อง, จัดการออเดอร์และอัปเดตสถานะการจัดส่ง
@@ -49,3 +49,28 @@
 **1. ติดตั้ง Python Libraries:**
 ```bash
 pip install -r requirements.txt
+```
+
+**2. ตั้งค่า Environment Variables:**
+สร้างไฟล์ `.env` ไว้ในโฟลเดอร์หลักของโปรเจกต์ และกำหนดค่าต่างๆ ดังนี้:
+```env
+DATABASE_URL=your_postgresql_connection_string
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+SMTP_EMAIL=your_email@gmail.com
+SMTP_PASSWORD=your_app_password
+FRONTEND_URL=http://localhost:3001
+```
+
+**3. รันเซิร์ฟเวอร์:**
+ระบบจะทำการเชื่อมต่อฐานข้อมูลและตั้งค่าเริ่มต้นให้โดยอัตโนมัติ
+```bash
+python app.py
+```
+
+**4. การเข้าใช้งาน:**
+เปิดเว็บเบราว์เซอร์และเข้าไปที่ที่อยู่ของ Localhost ตามพอร์ตที่กำหนด:
+```text
+http://localhost:3001
+```
