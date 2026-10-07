@@ -736,6 +736,25 @@ async def inspect_amulet(
             cand_cls = cand_results.names[int(cand_results.boxes.cls[0])]
             best_conf_val = float(cand_results.boxes.conf[0]) * 100
 
+        # เพิ่ม Dictionary เพื่อแปลงชื่อให้มีวงเล็บภาษาไทย
+        amulet_mapping = {
+            "Nang Praya Phitsanulok": "Nang Praya Phitsanulok (พระนางพญา)",
+            "Pong Suphan": "Pong Suphan (พระผงสุพรรณ)",
+            "Rod Mahawan": "Rod Mahawan (พระรอด)",
+            "Shum Kor": "Shum Kor (พระซุ้มกอ)",
+            "Somdej Bang Kun Pom": "Somdej Bang Kun Pom (พระสมเด็จบางขุนพรหม)",
+            "Somdej Gede Chaiyo": "Somdej Gede Chaiyo (พระสมเด็จเกศไชโย)",
+            "Somdej Wat Rakang": "Somdej Wat Rakang (พระสมเด็จวัดระฆัง)",
+            "Wooden Penis": "Wooden Penis (ปลัดขิก)",
+            "amulet": "amulet (พระเครื่องทั่วไป)"
+        }
+        
+        # แปลงชื่อคลาสอ้างอิงและคลาสที่ตรวจพบ
+        if ref_cls:
+            ref_cls = amulet_mapping.get(ref_cls, ref_cls)
+        if cand_cls:
+            cand_cls = amulet_mapping.get(cand_cls, cand_cls)
+
         ai_pass = False
         note = ""
         if not ref_cls or not cand_cls:

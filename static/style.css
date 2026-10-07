@@ -1537,3 +1537,12 @@ html[data-theme="light"] .top-navbar > :first-child svg {
 html[data-theme="light"] .notes-content {
     color: #1f2937 !important;
 }
+
+/* ปรับสีกรอบชื่อผู้ใช้งาน (User Badge) สำหรับโหมดสว่าง (Light Theme) ให้สวยและพรีเมียมขึ้น */
+[data-theme="light"] .user-badge {
+    background-color: #fffbeb; /* พื้นหลังสีเหลืองครีมอ่อนๆ สบายตา */
+    color: #92400e; /* สีตัวอักษรเป็นสีน้ำตาลทอง ดูแพงและอ่านง่าย */
+    border: 1px solid #fcd34d; /* เส้นขอบสีทองสว่าง */
+    box-shadow: 0 2px 4px rgba(245, 158, 11, 0.15); /* เพิ่มเงาสีทองเบาๆ ให้ปุ่มดูมีมิติ */
+    font-weight: 600; /* ปรับตัวหนังสือให้หนาขึ้นนิดนึงจะได้ชัดเจน */
+}
