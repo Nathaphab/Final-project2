@@ -70,6 +70,7 @@ const checkLoginStatus = () => {
     const navAuth = document.getElementById('nav-auth-section');
     const clearBtn = document.getElementById('btn-clear-history');
     const manageUsersBtn = document.getElementById('btn-manage-users');
+    const btnAddAmulet = document.getElementById('btn-show-add-amulet'); // ดึงปุ่มลงขายมาควบคุม
 
     if (user) {
         let roleTh = user.role === 'seller' ? 'ผู้ขาย' : (user.role === 'buyer' ? 'ผู้ซื้อ' : 'แอดมิน');
@@ -96,11 +97,18 @@ const checkLoginStatus = () => {
             `;
         }
 
+        // ควบคุมปุ่มลงขาย: แสดงเฉพาะผู้ขายหรือแอดมินเท่านั้น
+        if (btnAddAmulet) {
+            if (user.role === 'seller' || user.role === 'admin' || user.username === 'admin') {
+                btnAddAmulet.style.setProperty('display', 'inline-flex', 'important');
+            } else {
+                btnAddAmulet.style.setProperty('display', 'none', 'important');
+            }
+        }
+
         if (user.role === 'seller' || user.role === 'admin') {
-            document.getElementById('btn-show-add-amulet').style.display = 'inline-flex';
             toggleInspectZone(true);
         } else {
-            document.getElementById('btn-show-add-amulet').style.display = 'none';
             toggleInspectZone(false); 
         }
 
@@ -113,10 +121,16 @@ const checkLoginStatus = () => {
     } else {
         if(navAuth) {
             navAuth.innerHTML = `
-                <button class="btn-text" onclick="openModal('login-modal')">เข้าสู่ระบบ</button>
+                <button class="btn-login-custom" onclick="openModal('login-modal')">เข้าสู่ระบบ</button>
                 <button class="btn-primary" onclick="openModal('register-modal')">สมัครสมาชิก</button>
             `;
         }
+        
+        // ✨ สั่งซ่อนปุ่มลงขายแบบเด็ดขาดเมื่อยังไม่ได้เข้าสู่ระบบ
+        if (btnAddAmulet) {
+            btnAddAmulet.style.setProperty('display', 'none', 'important');
+        }
+
         toggleInspectZone(false); 
         if (clearBtn) clearBtn.style.display = 'none';
         if (manageUsersBtn) manageUsersBtn.style.display = 'none';
@@ -124,39 +138,6 @@ const checkLoginStatus = () => {
 
     if (typeof window.fetchMarketplace === 'function') {
         window.fetchMarketplace();
-    }
-};
-
-window.submitRegister = async () => {
-    const u = document.getElementById('reg-username').value.trim();
-    const e = document.getElementById('reg-email').value.trim();
-    const p = document.getElementById('reg-password').value.trim();
-    const r = document.getElementById('reg-role').value;
-
-    if (!u || !e || !p) return alert("กรุณากรอกข้อมูลให้ครบถ้วน");
-
-    // ✨ ปรับปุ่มให้หมุนโหลดระหว่างส่งอีเมล
-    const btn = document.getElementById('btn-submit-reg');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = 'กำลังประมวลผลและส่งอีเมล...';
-    btn.disabled = true;
-
-    try {
-        const res = await fetch('/api/register', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({username: u, email: e, password: p, role: r})
-        });
-        const data = await res.json();
-        alert(data.message);
-        if (data.success) {
-            closeModal('register-modal');
-        }
-    } catch (err) {
-        alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
-    } finally {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
     }
 };
 
@@ -1060,21 +1041,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     setTimeout(forceStatusColors, 500);
 });
-
-// ================= ระบบตรวจสอบสิทธิ์ (แอบเช็กทุก 0.5 วินาที) =================
-const applyRolePermissions = () => {
-    const user = getSafeUser();
-    document.querySelectorAll('button').forEach(btn => {
-        if (btn.textContent.includes('ลงขายพระเครื่อง')) {
-            if (!user || (user.role !== 'admin' && user.role !== 'seller')) {
-                btn.style.display = 'none';
-            } else {
-                btn.style.display = ''; 
-            }
-        }
-    });
-};
-setInterval(applyRolePermissions, 500);
 
 // ================= Order Management =================
 function openOrderModal(amuletId, price) {

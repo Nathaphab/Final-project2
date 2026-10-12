@@ -345,7 +345,8 @@ input[type="text"]:focus {
     font-family: var(--font-app);
     font-size: 0.95rem;
     font-weight: 500;
-    padding: 10px 18px;
+    padding: 12px 18px; /* แก้ไข: เพิ่มความสูงบน-ล่างให้ปุ่มอ้วนขึ้น */
+    min-height: 48px;   /* เพิ่มใหม่: บังคับความสูงมาตรฐานมือถือ (Touch Target) */
     border-radius: 8px;
     border: 1px solid transparent;
     cursor: pointer;
@@ -356,7 +357,12 @@ input[type="text"]:focus {
 .btn-primary {
     background: linear-gradient(135deg, var(--gold-dark) 0%, var(--gold-primary) 50%, var(--gold-bright) 100%);
     color: #000;
-    font-weight: 600;
+    font-weight: 700;   /* แก้ไข: เพิ่มความหนาของตัวอักษรให้ชัดขึ้น */
+    font-size: 16px;    /* เพิ่มใหม่: ขยายขนาดตัวหนังสือ */
+    padding: 12px 20px; /* เพิ่มใหม่: เพิ่มพื้นที่ด้านในปุ่ม */
+    min-height: 48px;   /* เพิ่มใหม่: บังคับความสูงขั้นต่ำ */
+    width: 100%;        /* เพิ่มใหม่: บังคับให้ปุ่มกางเต็มความกว้าง */
+    border-radius: 8px;
     box-shadow: var(--shadow-sm);
 }
 
@@ -1545,4 +1551,611 @@ html[data-theme="light"] .notes-content {
     border: 1px solid #fcd34d; /* เส้นขอบสีทองสว่าง */
     box-shadow: 0 2px 4px rgba(245, 158, 11, 0.15); /* เพิ่มเงาสีทองเบาๆ ให้ปุ่มดูมีมิติ */
     font-weight: 600; /* ปรับตัวหนังสือให้หนาขึ้นนิดนึงจะได้ชัดเจน */
+}
+
+/* ================= 📱 แก้ไขให้ปุ่มใหญ่และอ้วนขึ้นเฉพาะบนมือถือ (Phone) ================= */
+@media screen and (max-width: 768px) {
+    /* ขยายความสูงเฉพาะปุ่มที่ไม่ได้ถูกซ่อน (ไม่ไปยุ่งกับปุ่มแอดมินที่ปิดไว้) */
+    .btn:not([style*="display: none"]), 
+    .btn-primary:not([style*="display: none"]), 
+    .submit-btn:not([style*="display: none"]),
+    .btn-login-custom:not([style*="display: none"]) {
+        min-height: 52px !important;   /* บังคับความสูงให้สูงสะใจ ใช้นิ้วโป้งกดง่ายไม่พลาด */
+        padding: 14px 20px !important; /* เพิ่มพื้นที่ด้านบนและล่างให้ปุ่มอ้วนขึ้น */
+        font-size: 17px !important;    /* ขยายตัวหนังสือให้ใหญ่และอ่านง่ายขึ้น */
+        font-weight: 700 !important;   /* ตัวหนาเด่นชัด */
+        width: 100% !important;        /* บังคับให้ปุ่มกางเต็มความกว้างหน้าจอมือถือ */
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+}
+
+/* ================= 🎨 สไตล์ปุ่มเข้าสู่ระบบแบบพรีเมียม (สีฟ้า) ================= */
+.btn-login-custom {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px;
+    font-family: var(--font-app);
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 10px 18px !important;
+    border-radius: 8px !important;
+    cursor: pointer;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    user-select: none;
+    
+    /* สไตล์สีฟ้าพรีเมียม ไล่ระดับแสง */
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 50%, #0c4a6e 100%) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(0, 210, 255, 0.3) !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.btn-login-custom:hover {
+    box-shadow: 0 0 15px rgba(0, 210, 255, 0.4);
+    transform: translateY(-1px);
+    filter: brightness(1.15);
+}
+
+.btn-login-custom:active {
+    transform: translateY(1px);
+}
+
+/* ปรับขนาดเฉพาะตอนเปิดในมือถือให้พอดี ไม่เบียดและไม่ล้นจอ */
+@media screen and (max-width: 768px) {
+    .top-navbar {
+        padding: 0.75rem 1rem !important;
+    }
+    
+    .top-navbar > div:last-child {
+        gap: 8px !important;
+    }
+
+    .btn-login-custom:not([style*="display: none"]),
+    .top-navbar .btn-primary:not([style*="display: none"]) {
+        min-height: 40px !important;
+        padding: 8px 12px !important;
+        font-size: 14px !important;
+        width: auto !important;
+    }
+}
+
+/* ================= 💎 โค้ดแก้ Navbar และปุ่มเข้าสู่ระบบ/สมัครสมาชิก (สมบูรณ์แบบ) ================= */
+
+/* 1. บังคับให้กลุ่มปุ่มบน Navbar เรียงแนวนอนชิดกันเสมอ ไม่แยกบรรทัด */
+.top-navbar div[style*="display: flex"] {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    flex-wrap: nowrap !important;
+}
+
+.top-navbar #nav-auth-section {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    flex-wrap: nowrap !important;
+    width: auto !important;
+}
+
+/* 2. จัดแต่งปุ่ม "เข้าสู่ระบบ" (สีฟ้าพรีเมียม) ให้แสดงผลถูกต้องชัดเจน */
+.top-navbar .btn-login-custom {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 50%, #0c4a6e 100%) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(0, 210, 255, 0.4) !important;
+    padding: 8px 16px !important;
+    font-size: 0.9rem !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    cursor: pointer;
+    white-space: nowrap !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+    width: auto !important;
+    min-height: auto !important;
+}
+
+/* 3. จัดแต่งปุ่ม "สมัครสมาชิก" (สีทอง) บน Navbar ไม่ให้ขยายเต็มจอ */
+.top-navbar #nav-auth-section .btn-primary {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    padding: 8px 16px !important;
+    font-size: 0.9rem !important;
+    font-weight: 600 !important;
+    min-height: auto !important;
+    white-space: nowrap !important;
+    margin: 0 !important;
+}
+
+/* 4. ปรับขนาดสำหรับหน้าจอมือถือไม่ให้ล้นจอ */
+@media screen and (max-width: 768px) {
+    .top-navbar {
+        padding: 0.5rem 0.75rem !important;
+    }
+    .top-navbar .navbar-brand {
+        font-size: 0.85rem !important;
+        max-width: 42%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .top-navbar .btn-login-custom,
+    .top-navbar #nav-auth-section .btn-primary {
+        padding: 6px 10px !important;
+        font-size: 0.8rem !important;
+    }
+}
+
+/* ================= 💎 โค้ดจัดระเบียบ Navbar ทั้ง PC และ มือถือ (ฉบับสมบูรณ์) ================= */
+
+.nav-right-container {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    flex-wrap: nowrap !important;
+}
+
+/* 1. สำหรับหน้าจอ PC (กว้างกว่า 768px ขึ้นไป) */
+@media screen and (min-width: 769px) {
+    .top-navbar {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        padding: 1rem 2rem !important;
+        flex-wrap: nowrap !important;
+    }
+
+    .nav-right-container {
+        flex-direction: row !important;
+    }
+
+    .top-navbar .btn-text {
+        white-space: nowrap !important;
+    }
+}
+
+/* 2. สำหรับหน้าจอมือถือ (768px ลงมา) */
+@media screen and (max-width: 768px) {
+    .top-navbar {
+        padding: 0.5rem 8px !important;
+        justify-content: space-between !important;
+        flex-wrap: nowrap !important;
+    }
+
+    .top-navbar .navbar-brand {
+        font-size: 0.75rem !important;
+        max-width: 32% !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .nav-right-container {
+        gap: 4px !important;
+    }
+
+    .top-navbar .btn-primary,
+    .top-navbar .btn-login-custom,
+    .top-navbar .user-badge,
+    .top-navbar .btn-text {
+        font-size: 10px !important;
+        padding: 4px 6px !important;
+        min-height: 28px !important;
+        white-space: nowrap !important;
+        width: auto !important;
+    }
+
+    .top-navbar .user-badge {
+        max-width: 75px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+/* ================= 💎 โค้ดแก้ Navbar ทั้ง PC และ มือถือ (แบบสมบูรณ์ขั้นเด็ดขาด) ================= */
+
+/* 1. ตั้งค่าพื้นฐานคอนเทนต์ขวา */
+.nav-right-container {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-wrap: nowrap !important;
+}
+
+/* 🖥️ สำหรับหน้าจอ PC (กว้างกว่า 768px ขึ้นไป) */
+@media screen and (min-width: 769px) {
+    .top-navbar {
+        padding: 0.75rem 1.5rem !important;
+        flex-wrap: nowrap !important;
+    }
+    
+    .top-navbar .btn-primary,
+    .top-navbar .btn-login-custom,
+    .top-navbar .user-badge,
+    .top-navbar .btn-text {
+        font-size: 0.85rem !important;
+        padding: 6px 10px !important;
+        white-space: nowrap !important;
+    }
+}
+
+/* 📱 สำหรับหน้าจอมือถือ (768px ลงมา) */
+@media screen and (max-width: 768px) {
+    .top-navbar {
+        padding: 0.5rem 6px !important;
+        justify-content: space-between !important;
+        flex-wrap: nowrap !important;
+    }
+
+    /* ย่อโลโก้ทางซ้าย */
+    .top-navbar .navbar-brand {
+        font-size: 0.75rem !important;
+        max-width: 30% !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* 💡 บนมือถือ: ซ่อนปุ่ม "จัดการสมาชิก" หรือปุ่มยาวๆ ที่ซ้ำซ้อน เพื่อไม่ให้ล้น (หากต้องการโชว์ให้ลบอร์ดบรรทัดนี้ออก) */
+    /* #btn-manage-users { display: none !important; } */
+
+    /* ย่อขนาดปุ่มทั้งหมดบนมือถือให้อยู่ในแถวเดียวพอดี */
+    .top-navbar .btn-primary,
+    .top-navbar .btn-login-custom,
+    .top-navbar .user-badge,
+    .top-navbar .btn-text {
+        font-size: 10px !important;
+        padding: 4px 6px !important;
+        min-height: 30px !important;
+        white-space: nowrap !important;
+        width: auto !important;
+    }
+
+    /* ย่อป้ายชื่อยูสเซอร์บนมือถือ */
+    .top-navbar .user-badge {
+        max-width: 70px !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+/* ================= 📱 ปรับแต่ง Navbar บนมือถือให้เรียบร้อยไม่ซ้อนทับ ================= */
+@media screen and (max-width: 768px) {
+    .top-navbar {
+        padding: 0.5rem 4px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    /* ย่อขนาดโลโก้ด้านซ้ายให้พอดี */
+    .top-navbar .navbar-brand {
+        font-size: 0.7rem !important;
+        max-width: 25% !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* จัดกลุ่มปุ่มด้านขวาบนมือถือ */
+    .nav-right-container {
+        gap: 2px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    /* ย่อขนาดปุ่มและตัวอักษรทั้งหมดใน Navbar มือถือ */
+    .top-navbar .btn-primary,
+    .top-navbar .btn-login-custom,
+    .top-navbar .user-badge,
+    .top-navbar .btn-text {
+        font-size: 9px !important;
+        padding: 3px 4px !important;
+        min-height: 24px !important;
+        white-space: nowrap !important;
+        width: auto !important;
+    }
+
+    /* ตัดข้อความชื่อแอดมินยาวๆ ให้แสดงย่อลง */
+    .top-navbar .user-badge {
+        max-width: 60px !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+/* ================= 📱 แก้ไข Navbar บนมือถือให้อยู่ในแถวเดียวแบบไม่ล้น ================= */
+@media screen and (max-width: 768px) {
+    .top-navbar {
+        padding: 0.4rem 6px !important;
+        flex-wrap: nowrap !important;
+        justify-content: space-between !important;
+    }
+
+    /* ย่อโลโก้ทางซ้ายให้สั้นลง */
+    .top-navbar .navbar-brand {
+        font-size: 0.7rem !important;
+        max-width: 35% !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* จัดกลุ่มคอนเทนต์ขวาให้อยู่ในบรรทัดเดียวกัน */
+    .nav-right-container {
+        display: flex !important;
+        align-items: center !important;
+        gap: 4px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    /* ย่อขนาดปุ่มทั้งหมดบนมือถือให้เล็กและกะทัดรัด */
+    .top-navbar .btn-primary,
+    .top-navbar .btn-login-custom,
+    .top-navbar .user-badge,
+    .top-navbar .btn-text {
+        font-size: 9px !important;
+        padding: 3px 5px !important;
+        min-height: 24px !important;
+        height: auto !important;
+        white-space: nowrap !important;
+        width: auto !important;
+    }
+
+    /* ซ่อนข้อความปุ่มจัดการสมาชิกและประวัติการสั่งซื้อบนมือถือ ให้แสดงเฉพาะไอคอน เพื่อไม่ให้ล้นจอ */
+    .top-navbar #btn-manage-users span,
+    .top-navbar #btn-manage-users {
+        font-size: 0 !important;
+    }
+    .top-navbar #btn-manage-users i {
+        font-size: 12px !important;
+        margin: 0 !important;
+    }
+
+    /* ย่อกรอบชื่อผู้ใช้งาน (Admin) ให้สั้นลง */
+    .top-navbar .user-badge {
+        max-width: 55px !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+/* ================= 📱 แก้ไข Navbar บนมือถือให้แสดงผลแบบไอคอนกระชับ ================= */
+@media screen and (max-width: 768px) {
+    .top-navbar {
+        padding: 0.4rem 4px !important;
+        flex-wrap: nowrap !important;
+        justify-content: space-between !important;
+    }
+
+    /* ย่อโลโก้ทางซ้าย */
+    .top-navbar .navbar-brand {
+        font-size: 0.65rem !important;
+        max-width: 25% !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* จัดกลุ่มคอนเทนต์ขวา */
+    .nav-right-container {
+        display: flex !important;
+        align-items: center !important;
+        gap: 3px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    /* ปรับขนาดปุ่มทั้งหมดบนมือถือให้เล็กลง */
+    .top-navbar .btn-primary,
+    .top-navbar .btn-login-custom,
+    .top-navbar .user-badge,
+    .top-navbar .btn-text {
+        font-size: 9px !important;
+        padding: 3px 4px !important;
+        min-height: 24px !important;
+        height: auto !important;
+        white-space: nowrap !important;
+        width: auto !important;
+    }
+
+    /* ย่อชื่อผู้ใช้งาน (Admin) ให้สั้นลง */
+    .top-navbar .user-badge {
+        max-width: 50px !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* แปลงปุ่ม "ประวัติการสั่งซื้อ" ให้แสดงเฉพาะไอคอนตะกร้าบนมือถือ เพื่อประหยัดพื้นที่ */
+    .top-navbar .btn-primary:has(.fa-cart-shopping),
+    .top-navbar button:has(.fa-box) {
+        font-size: 0 !important;
+        padding: 5px 8px !important;
+    }
+    .top-navbar .btn-primary i,
+    .top-navbar button i {
+        font-size: 11px !important;
+        margin: 0 !important;
+    }
+}
+
+/* ================= 🚪 ปรับแต่งปุ่ม "ออกจากระบบ" ให้โดดเด่นและพรีเมียม ================= */
+.top-navbar .btn-text.text-danger, 
+.top-navbar button:not([class]), 
+.top-navbar .btn-text[onclick*="Logout"],
+.top-navbar .btn-text[onclick*="logout"] {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #991b1b 100%) !important;
+    color: #ffffff !important;
+    padding: 6px 14px !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 0.85rem !important;
+    border: 1px solid rgba(239, 68, 68, 0.4) !important;
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3) !important;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+}
+
+.top-navbar .btn-text.text-danger:hover, 
+.top-navbar button:not([class]):hover,
+.top-navbar .btn-text[onclick*="Logout"]:hover,
+.top-navbar .btn-text[onclick*="logout"]:hover {
+    filter: brightness(1.15) !important;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.6) !important;
+    transform: translateY(-1px) !important;
+    color: #ffffff !important;
+}
+
+/* ปรับขนาดพิเศษสำหรับมือถือ */
+@media screen and (max-width: 768px) {
+    .top-navbar .btn-text.text-danger, 
+    .top-navbar button:not([class]),
+    .top-navbar .btn-text[onclick*="Logout"],
+    .top-navbar .btn-text[onclick*="logout"] {
+        padding: 4px 8px !important;
+        font-size: 10px !important;
+        min-height: 26px !important;
+    }
+}
+
+/* ================= 💎 ปรับปุ่ม "เข้าสู่ระบบ" และ "สมัครสมาชิก" ให้ขนาดเท่ากันเป๊ะ ================= */
+.top-navbar #nav-auth-section {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+}
+
+/* บังคับขนาด ฟอนต์ และช่องไฟของทั้งสองปุ่มให้เท่ากันทุกประการ */
+.top-navbar .btn-login-custom,
+.top-navbar #nav-auth-section .btn-primary {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 38px !important;                 /* กำหนดความสูงเท่ากันเป๊ะ */
+    padding: 0 18px !important;              /* กำหนดระยะซ้าย-ขวาเท่ากัน */
+    font-size: 0.9rem !important;            /* ขนาดตัวหนังสือเท่ากัน */
+    font-weight: 600 !important;             /* ความหนาเท่ากัน */
+    border-radius: 8px !important;           /* ความมนของมุมเท่ากัน */
+    box-sizing: border-box !important;
+    white-space: nowrap !important;
+    line-height: normal !important;
+    margin: 0 !important;
+}
+
+/* แต่งสีเพิ่มเติมให้ปุ่มเข้าสู่ระบบ (สีฟ้าพรีเมียม) เข้าคู่กับปุ่มทอง */
+.top-navbar .btn-login-custom {
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 50%, #0c4a6e 100%) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(0, 210, 255, 0.4) !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
+}
+
+.top-navbar .btn-login-custom:hover {
+    filter: brightness(1.15);
+    box-shadow: 0 0 12px rgba(0, 210, 255, 0.5) !important;
+    transform: translateY(-1px);
+}
+
+/* ปรับขนาดเฉพาะตอนเปิดในมือถือให้ย่อลงพอดีจอ */
+@media screen and (max-width: 768px) {
+    .top-navbar .btn-login-custom,
+    .top-navbar #nav-auth-section .btn-primary {
+        height: 32px !important;
+        padding: 0 10px !important;
+        font-size: 0.8rem !important;
+    }
+}
+
+/* ================= 📱 ซ่อนปุ่มจัดการสมาชิกบนมือถือเพื่อไม่ให้ Navbar ล้น ================= */
+@media screen and (max-width: 768px) {
+    /* ซ่อนปุ่มจัดการสมาชิกบนหน้าจอมือถือ */
+    .top-navbar .btn-primary:has(.fa-users),
+    .top-navbar button:has(.fa-users) {
+        display: none !important;
+    }
+
+    .top-navbar {
+        padding: 0.5rem 8px !important;
+        flex-wrap: nowrap !important;
+        justify-content: space-between !important;
+    }
+
+    /* จัดกลุ่มปุ่มทางขวาให้อยู่ในแถวเดียวกันเป๊ะ */
+    .nav-right-container {
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    /* ปรับขนาดปุ่มที่เหลือบนมือถือให้สวยงามและพอดีจอ */
+    .top-navbar .btn-primary,
+    .top-navbar .btn-login-custom,
+    .top-navbar .user-badge,
+    .top-navbar .btn-text,
+    .top-navbar .btn-text.text-danger, 
+    .top-navbar button:not([class]) {
+        font-size: 10px !important;
+        padding: 4px 8px !important;
+        min-height: 28px !important;
+        white-space: nowrap !important;
+        width: auto !important;
+    }
+
+    /* ย่อชื่อ Admin ให้กะทัดรัด */
+    .top-navbar .user-badge {
+        max-width: 65px !important;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+/* ================= 🏷️ ปรับลดขนาดปุ่ม "+ ลงขายพระเครื่อง" ให้พอดี ไม่ยาวเต็มจอจนเกินไป ================= */
+
+/* สำหรับหน้าจอ PC และทั่วไป */
+.market-card + .btn-primary, 
+.market-section .btn-primary,
+#market-section .btn-primary,
+.marketplace-section .btn-primary,
+.app-container .card-body .btn-primary:not(.top-navbar .btn-primary),
+button.btn-primary:has(.fa-plus),
+button.btn-primary:has(i.fa-plus) {
+    max-width: 320px !important;    /* กำหนดความกว้างสูงสุดไม่ให้ยาวเกินไป */
+    width: 100% !important;
+    margin: 0 auto !important;      /* จัดให้อยู่กึ่งกลางกล่องสวยๆ */
+    display: flex !important;
+    justify-content: center !important;
+    align-items: center !important;
+    padding: 10px 20px !important;  /* ลดความอ้วนของปุ่มลงเล็กน้อย */
+    min-height: 42px !important;    /* ลดความสูงลงให้ดูเพรียวขึ้น */
+    font-size: 0.95rem !important;  /* ปรับขนาดตัวหนังสือให้พอดี */
+}
+
+/* ทำให้กล่องหัวข้อตลาดพระเครื่องจัดกึ่งกลางปุ่มได้สวยงาม */
+.market-header-wrapper, 
+div:has(> .btn-primary:has(.fa-plus)) {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    width: 100% !important;
+}
+
+/* สำหรับหน้าจอมือถือ (Phone) ให้ขยายกว้างขึ้นนิดหน่อยเพื่อให้กดง่ายแต่ไม่ล้น */
+@media screen and (max-width: 768px) {
+    .market-card + .btn-primary, 
+    .market-section .btn-primary,
+    #market-section .btn-primary,
+    .marketplace-section .btn-primary,
+    .app-container .card-body .btn-primary:not(.top-navbar .btn-primary),
+    button.btn-primary:has(.fa-plus),
+    button.btn-primary:has(i.fa-plus) {
+        max-width: 100% !important;  /* บนมือถือให้ยืดหยุ่นเต็มพื้นที่พอดีจอ */
+        min-height: 44px !important;   /* คงขนาดให้ใช้นิ้วโป้งกดง่าย */
+        padding: 10px 16px !important;
+        font-size: 0.9rem !important;
+    }
 }

@@ -20,8 +20,9 @@
             <i class="fa-solid fa-gem" style="color: #fbbf24;"></i> Smart Amulet Verification
         </div>
         
-        <div style="display: flex; align-items: center; gap: 15px;">
-            <button id="theme-toggle" class="btn-text" onclick="toggleTheme()" title="สลับโหมดมืด/สว่าง" style="font-size: 1.2rem; padding: 5px 10px;">
+        <!-- ✨ ใช้คลาส nav-right-container เพื่อควบคุมการจัดระเบียบผ่าน CSS -->
+        <div class="nav-right-container">
+            <button id="theme-toggle" class="btn-text" onclick="toggleTheme()" title="สลับโหมดมืด/สว่าง">
                 <i class="fa-solid fa-sun" id="theme-icon"></i>
             </button>
             
@@ -30,7 +31,7 @@
             </button>
 
             <div class="nav-links" id="nav-auth-section">
-                <button class="btn-text" onclick="openModal('login-modal')">เข้าสู่ระบบ</button>
+                <button class="btn-login-custom" onclick="openModal('login-modal')">เข้าสู่ระบบ</button>
                 <button class="btn-primary" onclick="openModal('register-modal')">สมัครสมาชิก</button>
             </div>
         </div>
@@ -399,7 +400,7 @@
         <section class="card" style="margin-top: 30px; padding: 20px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2 style="color: var(--color-text);"><i class="fa-solid fa-store" style="color: #ffd700;"></i> ตลาดพระเครื่อง (Marketplace)</h2>
-                <button id="btn-show-add-amulet" class="btn-primary" style="display: none;" onclick="openModal('add-amulet-modal')">
+                <button id="btn-show-add-amulet" class="btn-primary" style="display: none !important;" onclick="openModal('add-amulet-modal')">
                     <i class="fa-solid fa-plus"></i> ลงขายพระเครื่อง
                 </button>
             </div>
