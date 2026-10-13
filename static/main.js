@@ -115,8 +115,15 @@ const checkLoginStatus = () => {
         if (clearBtn) {
             clearBtn.style.display = (user.role === 'admin' || user.username === 'admin') ? 'inline-flex' : 'none';
         }
-        if (manageUsersBtn) {
-            manageUsersBtn.style.display = (user.role === 'admin' || user.username === 'admin') ? 'inline-block' : 'none';
+       if (manageUsersBtn) {
+            if (user.role === 'admin' || user.username === 'admin') {
+                manageUsersBtn.style.setProperty('display', 'inline-flex', 'important');
+                manageUsersBtn.style.setProperty('background-color', '#eab308', 'important'); // ทำเป็นสีเหลืองทองสวยๆ
+                manageUsersBtn.style.setProperty('color', '#000000', 'important');
+                manageUsersBtn.style.setProperty('font-weight', 'bold', 'important');
+            } else {
+                manageUsersBtn.style.setProperty('display', 'none', 'important');
+            }
         }
     } else {
         if(navAuth) {
@@ -140,7 +147,61 @@ const checkLoginStatus = () => {
         window.fetchMarketplace();
     }
 };
+window.submitRegister = async () => {
+    const username = document.getElementById('reg-username').value.trim();
+    const email = document.getElementById('reg-email').value.trim();
+    const password = document.getElementById('reg-password').value.trim();
+    const role = document.getElementById('reg-role').value;
 
+    if (!username || !email || !password) {
+        return alert("กรุณากรอกข้อมูลให้ครบถ้วน");
+    }
+
+    const btn = document.getElementById('btn-submit-reg');
+    const originalText = btn ? btn.innerHTML : 'ยืนยันการสมัคร';
+    
+    if (btn) {
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> กำลังสมัคร...';
+        btn.disabled = true;
+    }
+
+    try {
+        const res = await fetch('/api/register', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                username: username,
+                email: email,
+                password: password,
+                role: role
+            })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            alert(data.message || "สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบ");
+            closeModal('register-modal');
+            
+            // เคลียร์ค่าในช่องกรอก
+            document.getElementById('reg-username').value = '';
+            document.getElementById('reg-email').value = '';
+            document.getElementById('reg-password').value = '';
+            
+            // เปิดหน้าล็อกอินให้เลย
+            openModal('login-modal'); 
+        } else {
+            alert(data.message || "การสมัครสมาชิกล้มเหลว");
+        }
+    } catch (err) {
+        console.error(err);
+        alert("เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์");
+    } finally {
+        if (btn) {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+};
 window.submitLogin = async () => {
     const e = document.getElementById('log-email').value.trim();
     const p = document.getElementById('log-password').value.trim();
